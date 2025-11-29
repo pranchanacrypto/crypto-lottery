@@ -35,7 +35,6 @@ router.get('/latest', async (req, res) => {
  */
 router.post('/check', async (req, res) => {
   try {
-    // TODO: Add admin authentication
     const result = await checkPowerballResults();
     
     if (!result) {
@@ -64,7 +63,6 @@ router.post('/check', async (req, res) => {
  */
 router.post('/manual', async (req, res) => {
   try {
-    // TODO: Add admin authentication
     const { drawDate, numbers, powerball } = req.body;
     
     // Validation
@@ -154,5 +152,4 @@ router.get('/next-draw', async (req, res) => {
 });
 
 export default router;
-
 

@@ -1,6 +1,5 @@
 import Bet from '../models/Bet.js';
 import { sendPayment } from './blockchainService.js';
-import { ethers } from 'ethers';
 
 // Prize distribution percentages
 const HOUSE_FEE = 0.05;          // 5%
@@ -198,5 +197,4 @@ export async function getUnpaidWinners() {
     throw error;
   }
 }
-
 

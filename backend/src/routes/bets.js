@@ -62,16 +62,15 @@ router.post('/', async (req, res) => {
     }
     
     // Get current round
-    let currentRound = await Round.findOne({ isFinalized: false }).sort({ roundId: -1 });
+    let currentRound = await Round.findOne({ isFinalized: false });
     
     // Create first round if none exists
     if (!currentRound) {
-      currentRound = new Round({
+      currentRound = await Round.create({
         roundId: 1,
         startTime: new Date(),
         drawDate: getNextPowerballDrawDate()
       });
-      await currentRound.save();
     }
     
     // Validate transaction on blockchain
@@ -91,7 +90,7 @@ router.post('/', async (req, res) => {
     }
     
     // Create bet
-    const bet = new Bet({
+    const bet = await Bet.create({
       numbers: numbers.sort((a, b) => a - b),
       powerball,
       transactionId,
@@ -103,8 +102,6 @@ router.post('/', async (req, res) => {
       isValidated: txDetails ? true : false,
       validationError
     });
-    
-    await bet.save();
     
     // Update round bet count
     currentRound.totalBets += 1;
@@ -143,8 +140,7 @@ router.get('/recent', async (req, res) => {
       isValidated: true
     })
       .sort({ betPlacedAt: -1 })
-      .limit(parseInt(limit))
-      .select('nickname transactionId betPlacedAt numbers powerball');
+      .limit(parseInt(limit));
     
     res.json({
       success: true,
@@ -234,7 +230,7 @@ router.get('/check/:transactionId', async (req, res) => {
  */
 router.get('/current-round', async (req, res) => {
   try {
-    const currentRound = await Round.findOne({ isFinalized: false }).sort({ roundId: -1 });
+    const currentRound = await Round.findOne({ isFinalized: false });
     
     if (!currentRound) {
       return res.json({
@@ -325,5 +321,4 @@ function getNextPowerballDrawDate() {
 }
 
 export default router;
-
 
