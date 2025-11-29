@@ -1,5 +1,5 @@
-import axios from 'axios';
-import * as cheerio from 'cheerio';
+// import axios from 'axios';
+// import * as cheerio from 'cheerio';
 import PowerballResult from '../models/PowerballResult.js';
 import Round from '../models/Round.js';
 import Bet from '../models/Bet.js';
@@ -7,8 +7,15 @@ import { calculateWinners, distributePrizes } from './prizeService.js';
 
 /**
  * Fetch latest Powerball results via web scraping
+ * NOTE: Temporarily disabled due to cheerio/Node.js compatibility
+ * Use manualEntryResults() instead
  */
 export async function fetchPowerballResults() {
+  console.log('⚠️  Web scraping disabled. Use manual entry instead.');
+  console.log('   Call POST /api/powerball/manual to add results');
+  return [];
+  
+  /* Commented out due to cheerio dependency issues with Node 18
   try {
     const response = await axios.get('https://www.powerball.com/previous-results', {
       headers: {
@@ -24,7 +31,6 @@ export async function fetchPowerballResults() {
       const dateText = $(element).find('.date').text().trim();
       const numbersText = $(element).find('.numbers').text().trim();
       
-      // This selector may need adjustment based on actual website structure
       const numberMatch = numbersText.match(/(\d+)/g);
       
       if (numberMatch && numberMatch.length >= 6) {
@@ -44,6 +50,7 @@ export async function fetchPowerballResults() {
     console.error('Error fetching Powerball results:', error.message);
     return [];
   }
+  */
 }
 
 /**
@@ -100,7 +107,7 @@ async function processRoundResults(powerballResult) {
     const round = await Round.findOne({
       drawDate: { $lte: powerballResult.drawDate },
       isFinalized: false
-    }).sort({ drawDate: -1 });
+    });
     
     if (!round) {
       console.log('No active round found for this draw');
@@ -150,17 +157,15 @@ async function processRoundResults(powerballResult) {
  */
 async function createNextRound(previousRound) {
   try {
-    // Next Powerball draw (Mon, Wed, Sat)
     const nextDrawDate = getNextPowerballDrawDate();
     
-    const newRound = new Round({
+    const newRound = await Round.create({
       roundId: previousRound.roundId + 1,
       startTime: new Date(),
       drawDate: nextDrawDate,
       isFinalized: false
     });
     
-    await newRound.save();
     console.log(`✅ Created round ${newRound.roundId} for draw on ${nextDrawDate}`);
     
     return newRound;
@@ -176,8 +181,6 @@ async function createNextRound(previousRound) {
 function getNextPowerballDrawDate() {
   const now = new Date();
   const dayOfWeek = now.getDay();
-  
-  // Draw days: 1 (Mon), 3 (Wed), 6 (Sat)
   const drawDays = [1, 3, 6];
   
   let daysToAdd = 1;
@@ -191,7 +194,7 @@ function getNextPowerballDrawDate() {
   
   const nextDraw = new Date(now);
   nextDraw.setDate(now.getDate() + daysToAdd);
-  nextDraw.setHours(22, 59, 0, 0); // 10:59 PM
+  nextDraw.setHours(22, 59, 0, 0);
   
   return nextDraw;
 }
@@ -218,17 +221,14 @@ export async function manualEntryResults(drawDate, numbers, powerball) {
 }
 
 /**
- * Get latest Powerball results from database
+ * Get latest Powerball results from storage
  */
 export async function getLatestResults(limit = 10) {
   try {
-    return await PowerballResult.find()
-      .sort({ drawDate: -1 })
-      .limit(limit);
+    return await PowerballResult.find().sort({ drawDate: -1 }).limit(limit);
   } catch (error) {
     console.error('Error getting latest results:', error);
     throw error;
   }
 }
-
 

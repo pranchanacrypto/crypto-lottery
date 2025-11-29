@@ -1,60 +1,53 @@
-import mongoose from 'mongoose';
+import { RoundStorage } from '../storage/jsonStorage.js';
 
-const roundSchema = new mongoose.Schema({
-  roundId: {
-    type: Number,
-    required: true,
-    unique: true
-  },
-  
-  startTime: {
-    type: Date,
-    required: true
-  },
-  
-  drawDate: {
-    type: Date,
-    required: true
-  },
-  
-  winningNumbers: {
-    type: [Number],
-    default: []
-  },
-  
-  winningPowerball: {
-    type: Number
-  },
-  
-  isFinalized: {
-    type: Boolean,
-    default: false
-  },
-  
-  finalizedAt: {
-    type: Date
-  },
-  
-  totalBets: {
-    type: Number,
-    default: 0
-  },
-  
-  totalPrizePool: {
-    type: String,
-    default: '0'
-  },
-  
-  winners: {
-    sixMatches: { type: Number, default: 0 },
-    fiveMatches: { type: Number, default: 0 },
-    fourMatches: { type: Number, default: 0 },
-    threeMatches: { type: Number, default: 0 }
+/**
+ * Round model wrapper for JSON storage
+ */
+class RoundModel {
+  static async findOne(query) {
+    const round = await RoundStorage.findOne(query);
+    return enhanceRound(round);
   }
-}, {
-  timestamps: true
-});
 
-export default mongoose.model('Round', roundSchema);
+  static async create(roundData) {
+    const round = {
+      roundId: roundData.roundId,
+      startTime: roundData.startTime,
+      drawDate: roundData.drawDate,
+      winningNumbers: roundData.winningNumbers || [],
+      winningPowerball: roundData.winningPowerball || null,
+      isFinalized: roundData.isFinalized || false,
+      finalizedAt: roundData.finalizedAt || null,
+      totalBets: roundData.totalBets || 0,
+      totalPrizePool: roundData.totalPrizePool || '0',
+      winners: roundData.winners || {
+        sixMatches: 0,
+        fiveMatches: 0,
+        fourMatches: 0,
+        threeMatches: 0
+      }
+    };
 
+    const created = await RoundStorage.create(round);
+    return enhanceRound(created);
+  }
+}
+
+// Helper to make round object have save method
+function enhanceRound(round) {
+  if (!round) return null;
+  
+  round.save = async function() {
+    return await RoundStorage.update(this._id, this);
+  };
+  
+  // Add sort method for consistency
+  round.sort = function() {
+    return this;
+  };
+  
+  return round;
+}
+
+export default RoundModel;
 
