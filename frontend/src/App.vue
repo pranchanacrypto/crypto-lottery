@@ -1,12 +1,12 @@
 <template>
-  <div id="app" class="min-h-screen p-4 md:p-8">
+  <div id="app" class="min-h-screen p-2 sm:p-4 md:p-8">
     <div class="max-w-7xl mx-auto">
       <!-- Header -->
-      <header class="text-center mb-8">
-        <h1 class="text-5xl md:text-6xl font-bold mb-3 bg-gradient-to-r from-purple-400 via-pink-400 to-purple-400 bg-clip-text text-transparent">
+      <header class="text-center mb-4 sm:mb-8">
+        <h1 class="text-3xl sm:text-5xl md:text-6xl font-bold mb-2 sm:mb-3 bg-gradient-to-r from-purple-400 via-pink-400 to-purple-400 bg-clip-text text-transparent">
           🔮 CryptoBall
         </h1>
-        <p class="text-xl text-gray-300">Win Big. Stay Anonymous. Powered by Blockchain</p>
+        <p class="text-sm sm:text-xl text-gray-300">Win Big. Stay Anonymous. Powered by Blockchain</p>
       </header>
 
       <!-- Main Layout -->
@@ -19,61 +19,61 @@
           <div class="card">
             <div class="flex justify-between items-center">
               <div>
-                <h3 class="text-lg font-semibold text-purple-400">Current Round</h3>
-                <p class="text-2xl font-bold">#{{ currentRound?.roundId || '...' }}</p>
+                <h3 class="text-sm sm:text-lg font-semibold text-purple-400">Current Round</h3>
+                <p class="text-xl sm:text-2xl font-bold">#{{ currentRound?.roundId || '...' }}</p>
               </div>
               <div class="text-right">
-                <p class="text-sm text-gray-400">Next Draw</p>
-                <p class="font-semibold">{{ formatDrawDate(currentRound?.drawDate) }}</p>
-                <p class="text-sm text-gray-400">{{ currentRound?.totalBets || 0 }} bets placed</p>
+                <p class="text-xs sm:text-sm text-gray-400">Next Draw</p>
+                <p class="font-semibold text-xs sm:text-base">{{ formatDrawDate(currentRound?.drawDate) }}</p>
+                <p class="text-xs sm:text-sm text-gray-400">{{ currentRound?.totalBets || 0 }} bets placed</p>
               </div>
             </div>
           </div>
 
           <!-- Number Picker -->
           <div class="card">
-            <h3 class="text-xl font-bold mb-4">Choose Your Numbers</h3>
+            <h3 class="text-lg sm:text-xl font-bold mb-3 sm:mb-4">Choose Your Numbers</h3>
             
             <!-- Instructions -->
-            <div class="bg-blue-900/20 border border-blue-500/30 rounded-lg p-4 mb-4">
-              <p class="text-sm text-blue-300">
+            <div class="bg-blue-900/20 border border-blue-500/30 rounded-lg p-3 sm:p-4 mb-3 sm:mb-4">
+              <p class="text-xs sm:text-sm text-blue-300">
                 <strong>How to pick:</strong> Select 6 numbers from the grid below. 
                 The <span class="text-red-400 font-bold">last number</span> you pick is automatically your <strong>Crypto Ball</strong> (must be ≤ 26).
               </p>
             </div>
             
             <!-- Selection Status -->
-            <div class="flex justify-between items-center mb-3">
-              <div class="flex gap-4">
-                <p class="text-sm">
+            <div class="flex justify-between items-center mb-2 sm:mb-3">
+              <div class="flex gap-2 sm:gap-4">
+                <p class="text-xs sm:text-sm">
                   <span class="text-purple-400 font-semibold">Regular:</span> 
                   <span class="text-gray-300">{{ regularNumbers.length }}/5</span>
                 </p>
-                <p class="text-sm">
+                <p class="text-xs sm:text-sm">
                   <span class="text-red-400 font-semibold">Crypto Ball:</span> 
                   <span class="text-gray-300">{{ powerball ? powerball : '-' }}</span>
                 </p>
               </div>
-              <p class="text-sm text-gray-400">
+              <p class="text-xs sm:text-sm text-gray-400">
                 {{ selectedNumbers.length }}/6 total
               </p>
             </div>
 
             <!-- Error message for invalid crypto ball -->
-            <div v-if="powerballError" class="bg-red-900/30 border border-red-500/50 rounded-lg p-3 mb-4 animate-pulse">
-              <p class="text-sm text-red-300 font-semibold">⚠️ {{ powerballError }}</p>
+            <div v-if="powerballError" class="bg-red-900/30 border border-red-500/50 rounded-lg p-2 sm:p-3 mb-3 sm:mb-4 animate-pulse">
+              <p class="text-xs sm:text-sm text-red-300 font-semibold">⚠️ {{ powerballError }}</p>
             </div>
             
             <!-- Helper text when selecting 6th number -->
-            <div v-if="selectedNumbers.length === 5" class="bg-orange-900/20 border border-orange-500/30 rounded-lg p-3 mb-4">
-              <p class="text-sm text-orange-300">
+            <div v-if="selectedNumbers.length === 5" class="bg-orange-900/20 border border-orange-500/30 rounded-lg p-2 sm:p-3 mb-3 sm:mb-4">
+              <p class="text-xs sm:text-sm text-orange-300">
                 🔮 <strong>Next number will be your Crypto Ball!</strong> Choose a number between <strong>1-26</strong>
               </p>
             </div>
             
             <!-- Single Number Grid (1-69) -->
             <div class="mb-6">
-              <div class="grid grid-cols-10 gap-2">
+              <div class="grid grid-cols-7 sm:grid-cols-8 md:grid-cols-10 gap-1.5 sm:gap-2">
                 <button
                   v-for="num in 69"
                   :key="num"
@@ -92,7 +92,7 @@
                   <!-- Crypto Ball indicator -->
                   <span 
                     v-if="selectedNumbers.indexOf(num) === 5" 
-                    class="absolute -top-1 -right-1 text-xs bg-red-600 rounded-full w-4 h-4 flex items-center justify-center font-bold"
+                    class="absolute -top-0.5 -right-0.5 text-[10px] sm:text-xs bg-red-600 rounded-full w-3 h-3 sm:w-4 sm:h-4 flex items-center justify-center font-bold"
                   >
                     C
                   </span>
@@ -101,35 +101,35 @@
             </div>
 
             <!-- Quick Pick Button -->
-            <div class="text-center mb-6">
+            <div class="text-center mb-4 sm:mb-6">
               <button
                 @click="quickPick"
-                class="btn bg-gray-700 hover:bg-gray-600 text-white"
+                class="btn bg-gray-700 hover:bg-gray-600 text-white text-sm sm:text-base"
               >
                 🎲 Quick Pick (Random)
               </button>
             </div>
 
             <!-- Selected Numbers Display -->
-            <div v-if="selectedNumbers.length > 0" class="bg-gray-900/50 rounded-lg p-4 mb-6">
-              <p class="text-sm text-gray-400 mb-2">Your Selection:</p>
-              <div class="flex items-center gap-3 flex-wrap">
+            <div v-if="selectedNumbers.length > 0" class="bg-gray-900/50 rounded-lg p-3 sm:p-4 mb-4 sm:mb-6">
+              <p class="text-xs sm:text-sm text-gray-400 mb-2">Your Selection:</p>
+              <div class="flex items-center gap-2 sm:gap-3 flex-wrap">
                 <!-- Regular numbers (first 5) -->
                 <div
                   v-for="(num, index) in regularNumbers"
                   :key="'regular-' + num"
-                  class="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center font-bold shadow-lg"
+                  class="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center font-bold text-sm sm:text-base shadow-lg"
                 >
                   {{ num }}
                 </div>
                 <!-- Separator and Crypto Ball -->
-                <span v-if="powerball" class="text-2xl text-gray-400">+</span>
+                <span v-if="powerball" class="text-xl sm:text-2xl text-gray-400">+</span>
                 <div
                   v-if="powerball"
-                  class="relative w-12 h-12 rounded-full bg-gradient-to-br from-red-500 to-orange-500 flex items-center justify-center font-bold shadow-lg border-2 border-red-300"
+                  class="relative w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-gradient-to-br from-red-500 to-orange-500 flex items-center justify-center font-bold text-sm sm:text-base shadow-lg border-2 border-red-300"
                 >
                   {{ powerball }}
-                  <span class="absolute -top-2 -right-2 text-xs bg-red-600 text-white rounded-full px-2 py-0.5 font-bold shadow">
+                  <span class="absolute -top-1 -right-1 sm:-top-2 sm:-right-2 text-[10px] sm:text-xs bg-red-600 text-white rounded-full px-1.5 sm:px-2 py-0.5 font-bold shadow">
                     CB
                   </span>
                 </div>
@@ -137,24 +137,24 @@
             </div>
 
             <!-- Transaction ID Input -->
-            <div class="mb-4">
-              <label class="block text-sm font-semibold text-gray-300 mb-2">
+            <div class="mb-3 sm:mb-4">
+              <label class="block text-xs sm:text-sm font-semibold text-gray-300 mb-1.5 sm:mb-2">
                 Transaction ID <span class="text-red-400">*</span>
               </label>
               <input
                 v-model="transactionId"
                 type="text"
                 placeholder="Paste your Polygon transaction hash (0x...)"
-                class="input"
+                class="input text-sm"
               />
-              <p class="text-xs text-gray-400 mt-1">
+              <p class="text-[10px] sm:text-xs text-gray-400 mt-1 break-all">
                 Send {{ betAmount }} MATIC to: <span class="font-mono text-purple-400">{{ receivingWallet }}</span>
               </p>
             </div>
 
             <!-- Nickname Input -->
-            <div class="mb-6">
-              <label class="block text-sm font-semibold text-gray-300 mb-2">
+            <div class="mb-4 sm:mb-6">
+              <label class="block text-xs sm:text-sm font-semibold text-gray-300 mb-1.5 sm:mb-2">
                 Nickname <span class="text-gray-500">(Optional)</span>
               </label>
               <input
@@ -162,7 +162,7 @@
                 type="text"
                 maxlength="50"
                 placeholder="Enter a nickname to appear in recent bets"
-                class="input"
+                class="input text-sm"
               />
             </div>
 
@@ -170,7 +170,7 @@
             <button
               @click="placeBet"
               :disabled="!isValidBet || isSubmitting"
-              class="btn btn-primary w-full text-lg"
+              class="btn btn-primary w-full text-base sm:text-lg"
             >
               <span v-if="isSubmitting">⏳ Submitting...</span>
               <span v-else-if="!isValidBet">Complete All Fields</span>
@@ -181,10 +181,10 @@
           <!-- Success/Error Messages -->
           <div v-if="successMessage" class="card bg-green-900/30 border-green-500/50">
             <div class="text-center">
-              <div class="text-4xl mb-2">🎉</div>
-              <h3 class="text-xl font-bold text-green-400 mb-2">Bet Placed Successfully!</h3>
-              <p class="text-sm text-gray-300">{{ successMessage }}</p>
-              <button @click="resetForm" class="btn bg-green-600 hover:bg-green-700 mt-4">
+              <div class="text-3xl sm:text-4xl mb-2">🎉</div>
+              <h3 class="text-lg sm:text-xl font-bold text-green-400 mb-2">Bet Placed Successfully!</h3>
+              <p class="text-xs sm:text-sm text-gray-300">{{ successMessage }}</p>
+              <button @click="resetForm" class="btn bg-green-600 hover:bg-green-700 mt-3 sm:mt-4">
                 Place Another Bet
               </button>
             </div>
@@ -192,34 +192,34 @@
 
           <div v-if="errorMessage" class="card bg-red-900/30 border-red-500/50">
             <div class="text-center">
-              <div class="text-4xl mb-2">⚠️</div>
-              <h3 class="text-xl font-bold text-red-400 mb-2">Error</h3>
-              <p class="text-sm text-gray-300">{{ errorMessage }}</p>
+              <div class="text-3xl sm:text-4xl mb-2">⚠️</div>
+              <h3 class="text-lg sm:text-xl font-bold text-red-400 mb-2">Error</h3>
+              <p class="text-xs sm:text-sm text-gray-300">{{ errorMessage }}</p>
             </div>
           </div>
 
           <!-- How It Works -->
           <div class="card">
-            <h3 class="text-xl font-bold mb-4">How It Works</h3>
-            <ol class="space-y-3 text-sm text-gray-300">
-              <li class="flex gap-3">
-                <span class="flex-shrink-0 w-6 h-6 rounded-full bg-purple-600 flex items-center justify-center text-xs font-bold">1</span>
-                <span>Send {{ betAmount }} MATIC to <span class="font-mono text-purple-400">{{ receivingWallet }}</span></span>
+            <h3 class="text-lg sm:text-xl font-bold mb-3 sm:mb-4">How It Works</h3>
+            <ol class="space-y-2 sm:space-y-3 text-xs sm:text-sm text-gray-300">
+              <li class="flex gap-2 sm:gap-3">
+                <span class="flex-shrink-0 w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-purple-600 flex items-center justify-center text-[10px] sm:text-xs font-bold">1</span>
+                <span class="break-all">Send {{ betAmount }} MATIC to <span class="font-mono text-purple-400">{{ receivingWallet }}</span></span>
               </li>
-              <li class="flex gap-3">
-                <span class="flex-shrink-0 w-6 h-6 rounded-full bg-purple-600 flex items-center justify-center text-xs font-bold">2</span>
+              <li class="flex gap-2 sm:gap-3">
+                <span class="flex-shrink-0 w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-purple-600 flex items-center justify-center text-[10px] sm:text-xs font-bold">2</span>
                 <span>Copy your transaction hash and paste it above</span>
               </li>
-              <li class="flex gap-3">
-                <span class="flex-shrink-0 w-6 h-6 rounded-full bg-purple-600 flex items-center justify-center text-xs font-bold">3</span>
+              <li class="flex gap-2 sm:gap-3">
+                <span class="flex-shrink-0 w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-purple-600 flex items-center justify-center text-[10px] sm:text-xs font-bold">3</span>
                 <span>Choose 6 numbers - the last one is your Powerball (must be ≤ 26)</span>
               </li>
-              <li class="flex gap-3">
-                <span class="flex-shrink-0 w-6 h-6 rounded-full bg-purple-600 flex items-center justify-center text-xs font-bold">4</span>
+              <li class="flex gap-2 sm:gap-3">
+                <span class="flex-shrink-0 w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-purple-600 flex items-center justify-center text-[10px] sm:text-xs font-bold">4</span>
                 <span>Wait for the official lottery draw (Mon/Wed/Sat 10:59 PM ET)</span>
               </li>
-              <li class="flex gap-3">
-                <span class="flex-shrink-0 w-6 h-6 rounded-full bg-purple-600 flex items-center justify-center text-xs font-bold">5</span>
+              <li class="flex gap-2 sm:gap-3">
+                <span class="flex-shrink-0 w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-purple-600 flex items-center justify-center text-[10px] sm:text-xs font-bold">5</span>
                 <span>If you win, prize automatically sent to your wallet! 💰</span>
               </li>
             </ol>
@@ -229,7 +229,7 @@
         <!-- Right: Recent Bets -->
         <div class="lg:col-span-1">
           <div class="card sticky top-4">
-            <h3 class="text-xl font-bold mb-4">Recent Bets</h3>
+            <h3 class="text-lg sm:text-xl font-bold mb-3 sm:mb-4">Recent Bets</h3>
             
             <!-- Loading -->
             <div v-if="loadingBets" class="text-center py-8 text-gray-400">
@@ -288,9 +288,9 @@
       </div>
 
       <!-- Footer -->
-      <footer class="mt-12 text-center text-sm text-gray-400">
-        <p class="mb-2">🔒 100% Anonymous | ⚡ Instant Payouts | 🔍 Fully Transparent</p>
-        <p>Prize Distribution: 6 matches (50%) | 5 matches (30%) | 4 matches (10%) | 3 matches (5%) | House (5%)</p>
+      <footer class="mt-8 sm:mt-12 text-center text-xs sm:text-sm text-gray-400">
+        <p class="mb-1 sm:mb-2">🔒 100% Anonymous | ⚡ Instant Payouts | 🔍 Fully Transparent</p>
+        <p class="text-[10px] sm:text-xs">Prize Distribution: 6 matches (50%) | 5 matches (30%) | 4 matches (10%) | 3 matches (5%) | House (5%)</p>
       </footer>
     </div>
   </div>
