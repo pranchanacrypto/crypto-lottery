@@ -3,9 +3,13 @@ name: Deploy Frontend to Pinata
 on:
   push:
     branches: [main]
-    paths: ['frontend/**']
+    paths: 
+      - 'frontend/**'
+      - '.github/workflows/deploy-pinata.yml'
   pull_request:
-    paths: ['frontend/**']
+    paths:
+      - 'frontend/**'
+      - '.github/workflows/deploy-pinata.yml'
   workflow_dispatch:
 
 env:
