@@ -159,14 +159,19 @@ async function createNextRound(previousRound) {
   try {
     const nextDrawDate = getNextPowerballDrawDate();
     
+    // Get rollover amount from previous round
+    const rolloverAmount = previousRound.rolloverAmount || '0';
+    
     const newRound = await Round.create({
       roundId: previousRound.roundId + 1,
       startTime: new Date(),
       drawDate: nextDrawDate,
-      isFinalized: false
+      isFinalized: false,
+      accumulatedAmount: rolloverAmount // Carry over from previous round
     });
     
     console.log(`✅ Created round ${newRound.roundId} for draw on ${nextDrawDate}`);
+    console.log(`   Accumulated from previous round: ${rolloverAmount} MATIC`);
     
     return newRound;
   } catch (error) {

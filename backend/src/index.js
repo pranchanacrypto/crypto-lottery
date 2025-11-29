@@ -58,6 +58,19 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+// Config endpoint - returns public configuration
+app.get('/api/config', (req, res) => {
+  res.json({
+    success: true,
+    data: {
+      betAmount: process.env.BET_AMOUNT || '0.1',
+      receivingWallet: process.env.RECEIVING_WALLET || '0x49Ebd6bf6a1eF004dab7586CE0680eab9e1aFbCb',
+      network: 'Polygon',
+      currency: 'MATIC'
+    }
+  });
+});
+
 // Cron job to check Powerball results
 // Runs every day at 11 PM
 cron.schedule('0 23 * * *', async () => {

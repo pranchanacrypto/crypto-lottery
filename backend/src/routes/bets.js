@@ -2,6 +2,7 @@ import express from 'express';
 import Bet from '../models/Bet.js';
 import Round from '../models/Round.js';
 import { validateTransaction } from '../services/blockchainService.js';
+import { convertMaticToUsd, getMaticToUsdRate, formatUsd } from '../services/currencyService.js';
 
 const router = express.Router();
 
@@ -21,10 +22,10 @@ router.post('/', async (req, res) => {
       });
     }
     
-    if (!powerball || powerball < 1 || powerball > 26) {
+    if (!powerball || powerball < 1 || powerball > 69) {
       return res.status(400).json({
         success: false,
-        error: 'Powerball must be between 1 and 26'
+        error: 'Powerball must be between 1 and 69'
       });
     }
     
@@ -224,7 +225,7 @@ router.get('/check/:transactionId', async (req, res) => {
 
 /**
  * GET /api/bets/current-round
- * Get current round info
+ * Get current round info with USD conversion and accumulated amount
  */
 router.get('/current-round', async (req, res) => {
   try {
@@ -238,9 +239,49 @@ router.get('/current-round', async (req, res) => {
       });
     }
     
+    // Calculate total pool from all validated bets in this round
+    const bets = await Bet.find({
+      roundId: currentRound.roundId,
+      isValidated: true
+    });
+    
+    let newBetsMatic = 0;
+    for (const bet of bets) {
+      newBetsMatic += parseFloat(bet.transactionValue);
+    }
+    
+    // Add accumulated amount from previous round
+    const accumulatedMatic = parseFloat(currentRound.accumulatedAmount || '0');
+    const totalPoolMatic = newBetsMatic + accumulatedMatic;
+    
+    // Calculate prize pool (80% of new bets + all accumulated)
+    const prizePoolMatic = (newBetsMatic * 0.80) + accumulatedMatic;
+    
+    // Convert to USD
+    const totalPoolUsd = await convertMaticToUsd(totalPoolMatic);
+    const prizePoolUsd = await convertMaticToUsd(prizePoolMatic);
+    const accumulatedUsd = await convertMaticToUsd(accumulatedMatic);
+    const exchangeRate = await getMaticToUsdRate();
+    
+    // Add USD info to response
+    const roundData = {
+      ...currentRound,
+      newBetsMatic: newBetsMatic.toFixed(6),
+      accumulatedMatic: accumulatedMatic.toFixed(6),
+      totalPoolMatic: totalPoolMatic.toFixed(6),
+      prizePoolMatic: prizePoolMatic.toFixed(6),
+      totalPoolUsd: totalPoolUsd.toFixed(2),
+      totalPoolUsdFormatted: formatUsd(totalPoolUsd),
+      prizePoolUsd: prizePoolUsd.toFixed(2),
+      prizePoolUsdFormatted: formatUsd(prizePoolUsd),
+      accumulatedUsd: accumulatedUsd.toFixed(2),
+      accumulatedUsdFormatted: formatUsd(accumulatedUsd),
+      exchangeRate: exchangeRate.toFixed(4)
+    };
+    
     res.json({
       success: true,
-      data: currentRound
+      data: roundData
     });
   } catch (error) {
     console.error('Error getting current round:', error);
