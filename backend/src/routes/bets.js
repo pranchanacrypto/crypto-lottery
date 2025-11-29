@@ -136,9 +136,7 @@ router.get('/recent', async (req, res) => {
   try {
     const { limit = 20 } = req.query;
     
-    const bets = await Bet.find({
-      isValidated: true
-    })
+    const bets = await Bet.find()
       .sort({ betPlacedAt: -1 })
       .limit(parseInt(limit));
     

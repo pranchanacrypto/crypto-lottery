@@ -241,40 +241,62 @@
               <div
                 v-for="bet in recentBets"
                 :key="bet._id"
-                class="bg-gray-900/50 rounded-lg p-3 hover:bg-gray-900/70 transition"
+                class="bg-gray-900/50 rounded-lg p-3 hover:bg-gray-900/70 transition border border-gray-700/50"
               >
-                <div class="flex justify-between items-start mb-2">
-                  <p class="font-semibold text-purple-400">
+                <!-- User -->
+                <div class="mb-2">
+                  <p class="text-sm font-semibold text-purple-400">
                     {{ bet.nickname || 'Anonymous' }}
                   </p>
-                  <p class="text-xs text-gray-500">
+                  <p class="text-[10px] text-gray-500">
                     {{ formatTime(bet.betPlacedAt) }}
                   </p>
                 </div>
                 
                 <!-- Numbers -->
-                <div class="flex items-center gap-1 mb-2 flex-wrap">
-                  <div
-                    v-for="num in bet.numbers"
-                    :key="num"
-                    class="w-7 h-7 rounded-full bg-purple-600/30 border border-purple-500/50 flex items-center justify-center text-xs font-bold"
-                  >
-                    {{ num }}
-                  </div>
-                  <span class="text-sm">+</span>
-                  <div class="w-7 h-7 rounded-full bg-red-600/30 border border-red-500/50 flex items-center justify-center text-xs font-bold" title="Crypto Ball">
-                    {{ bet.powerball }}
+                <div class="mb-2">
+                  <p class="text-[10px] text-gray-400 mb-1">Numbers:</p>
+                  <div class="flex items-center gap-1.5 flex-wrap">
+                    <div
+                      v-for="num in bet.numbers"
+                      :key="num"
+                      class="w-7 h-7 rounded-full bg-purple-600/30 border border-purple-500/50 flex items-center justify-center text-xs font-bold"
+                    >
+                      {{ num }}
+                    </div>
+                    <span class="text-sm text-gray-400">+</span>
+                    <div class="w-7 h-7 rounded-full bg-red-600/30 border border-red-500/50 flex items-center justify-center text-xs font-bold" title="Crypto Ball">
+                      {{ bet.powerball }}
+                    </div>
                   </div>
                 </div>
                 
-                <!-- Transaction Link -->
-                <a
-                  :href="`https://polygonscan.com/tx/${bet.transactionId}`"
-                  target="_blank"
-                  class="text-xs text-blue-400 hover:text-blue-300 font-mono block truncate"
-                >
-                  {{ bet.transactionId.slice(0, 10) }}...{{ bet.transactionId.slice(-8) }}
-                </a>
+                <!-- Transaction Status -->
+                <div>
+                  <p class="text-[10px] text-gray-400 mb-1">Status:</p>
+                  <a
+                    :href="`https://polygonscan.com/tx/${bet.transactionId}`"
+                    target="_blank"
+                    class="inline-flex items-center gap-1.5"
+                    title="Click to view transaction on PolygonScan"
+                  >
+                    <span 
+                      v-if="bet.isValidated"
+                      class="text-[10px] bg-green-600/30 text-green-400 border border-green-500/50 px-2 py-0.5 rounded font-semibold hover:bg-green-600/50 transition cursor-pointer"
+                    >
+                      ✓ Validated
+                    </span>
+                    <span 
+                      v-else
+                      class="text-[10px] bg-yellow-600/30 text-yellow-400 border border-yellow-500/50 px-2 py-0.5 rounded font-semibold hover:bg-yellow-600/50 transition cursor-pointer"
+                    >
+                      ⏳ Pending
+                    </span>
+                    <svg class="w-3 h-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
+                    </svg>
+                  </a>
+                </div>
               </div>
             </div>
 
