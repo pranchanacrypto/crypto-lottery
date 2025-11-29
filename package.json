@@ -1,0 +1,26 @@
+{
+  "name": "crypto-lottery",
+  "version": "2.0.0",
+  "description": "Anonymous crypto lottery based on Powerball - Transaction ID method",
+  "private": true,
+  "workspaces": [
+    "backend",
+    "frontend"
+  ],
+  "scripts": {
+    "install:all": "npm install && cd backend && npm install && cd ../frontend && npm install",
+    "dev:backend": "cd backend && npm run dev",
+    "dev:frontend": "cd frontend && npm run dev",
+    "build:frontend": "cd frontend && npm run build"
+  },
+  "keywords": [
+    "crypto",
+    "lottery",
+    "powerball",
+    "polygon",
+    "anonymous",
+    "blockchain"
+  ],
+  "author": "",
+  "license": "MIT"
+}
