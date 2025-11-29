@@ -6,10 +6,6 @@ on:
     paths: 
       - 'frontend/**'
       - '.github/workflows/deploy-pinata.yml'
-  pull_request:
-    paths:
-      - 'frontend/**'
-      - '.github/workflows/deploy-pinata.yml'
   workflow_dispatch:
 
 env:
@@ -47,79 +43,34 @@ jobs:
           echo "Files:"
           ls -lah frontend/dist
 
-      - name: 🌐 Upload to Pinata
+      - name: 🌐 Upload to Pinata (IPFS)
         id: pinata
-        working-directory: ./frontend/dist
-        run: |
-          # Create tarball of all files
-          tar -czf ../dist.tar.gz .
-          cd ..
-          
-          # Upload to Pinata
-          RESPONSE=$(curl -X POST "https://api.pinata.cloud/pinning/pinFileToIPFS" \
-            -H "pinata_api_key: ${{ secrets.PINATA_API_KEY }}" \
-            -H "pinata_secret_api_key: ${{ secrets.PINATA_SECRET_KEY }}" \
-            -F "file=@dist.tar.gz" \
-            -F "pinataMetadata={\"name\":\"crypto-lottery-frontend-${{ github.sha }}\"}")
-          
-          echo "Pinata Response:"
-          echo "$RESPONSE"
-          
-          # Extract CID from response
-          CID=$(echo "$RESPONSE" | grep -o '"IpfsHash":"[^"]*' | cut -d'"' -f4)
-          
-          if [ -z "$CID" ]; then
-            echo "Error: Failed to extract CID from Pinata response"
-            exit 1
-          fi
-          
-          echo "CID: $CID"
-          echo "cid=$CID" >> $GITHUB_OUTPUT
-          echo "url=https://gateway.pinata.cloud/ipfs/$CID" >> $GITHUB_OUTPUT
-          
-          # Clean up
-          rm dist.tar.gz
+        uses: aquiladev/ipfs-action@v0.3.1
+        with:
+          path: ./frontend/dist
+          service: pinata
+          pinataKey: ${{ secrets.PINATA_API_KEY }}
+          pinataSecret: ${{ secrets.PINATA_SECRET_KEY }}
+          pinataPinName: crypto-lottery-frontend-${{ github.sha }}
 
       - name: 📝 Create deployment summary
         if: success()
         run: |
           echo "## 🚀 Deployment Successful!" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**IPFS CID:** \`${{ steps.pinata.outputs.cid }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**IPFS CID:** \`${{ steps.pinata.outputs.hash }}\`" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Access URLs:**" >> $GITHUB_STEP_SUMMARY
-          echo "- 🔗 Pinata Gateway: ${{ steps.pinata.outputs.url }}" >> $GITHUB_STEP_SUMMARY
-          echo "- 🔗 IPFS Gateway: https://ipfs.io/ipfs/${{ steps.pinata.outputs.cid }}" >> $GITHUB_STEP_SUMMARY
-          echo "- 🔗 Cloudflare Gateway: https://cloudflare-ipfs.com/ipfs/${{ steps.pinata.outputs.cid }}" >> $GITHUB_STEP_SUMMARY
+          echo "- 🔗 Pinata Gateway: https://gateway.pinata.cloud/ipfs/${{ steps.pinata.outputs.hash }}" >> $GITHUB_STEP_SUMMARY
+          echo "- 🔗 IPFS Gateway: https://ipfs.io/ipfs/${{ steps.pinata.outputs.hash }}" >> $GITHUB_STEP_SUMMARY
+          echo "- 🔗 Cloudflare Gateway: https://cloudflare-ipfs.com/ipfs/${{ steps.pinata.outputs.hash }}" >> $GITHUB_STEP_SUMMARY
+          echo "- 🔗 IPFS.tech Gateway: https://${{ steps.pinata.outputs.hash }}.ipfs.dweb.link" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Build Info:**" >> $GITHUB_STEP_SUMMARY
           echo "- Commit: \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
           echo "- Branch: \`${{ github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY
           echo "- Workflow: [\#${{ github.run_number }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})" >> $GITHUB_STEP_SUMMARY
 
-      - name: 💬 Comment on PR
-        if: github.event_name == 'pull_request' && success()
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const cid = '${{ steps.pinata.outputs.cid }}';
-            const url = '${{ steps.pinata.outputs.url }}';
-            
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: `## 🌐 Frontend Preview on IPFS
-            
-            **IPFS CID:** \`${cid}\`
-            
-            **Preview URLs:**
-            - 🔗 [Pinata Gateway](${url})
-            - 🔗 [IPFS Gateway](https://ipfs.io/ipfs/${cid})
-            - 🔗 [Cloudflare Gateway](https://cloudflare-ipfs.com/ipfs/${cid})
-            
-            *Deployed from commit ${context.sha.substring(0, 7)}*`
-            })
 
       - name: ❌ Deployment failed
         if: failure()
