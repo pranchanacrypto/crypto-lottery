@@ -12,6 +12,13 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Health check for Render (prevents sleeping)
+setInterval(async () => {
+  if (process.env.NODE_ENV === 'production') {
+    console.log('🏓 Keep-alive ping');
+  }
+}, 14 * 60 * 1000); // Every 14 minutes
+
 // CORS Configuration - Allow all origins for development
 const corsOptions = {
   origin: '*',
