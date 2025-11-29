@@ -12,6 +12,13 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Health check for Render (prevents sleeping)
+setInterval(async () => {
+  if (process.env.NODE_ENV === 'production') {
+    console.log('🏓 Keep-alive ping');
+  }
+}, 14 * 60 * 1000); // Every 14 minutes
+
 // CORS Configuration - Allow all origins for development
 const corsOptions = {
   origin: '*',
@@ -55,6 +62,19 @@ app.get('/api/health', (req, res) => {
     timestamp: new Date().toISOString(),
     service: 'crypto-lottery-backend-v2',
     storage: 'JSON files'
+  });
+});
+
+// Config endpoint - returns public configuration
+app.get('/api/config', (req, res) => {
+  res.json({
+    success: true,
+    data: {
+      betAmount: process.env.BET_AMOUNT || '0.1',
+      receivingWallet: process.env.RECEIVING_WALLET || '0x49Ebd6bf6a1eF004dab7586CE0680eab9e1aFbCb',
+      network: 'Polygon',
+      currency: 'MATIC'
+    }
   });
 });
 

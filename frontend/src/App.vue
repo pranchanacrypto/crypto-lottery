@@ -15,6 +15,41 @@
         <!-- Left: Bet Form -->
         <div class="lg:col-span-2 space-y-6">
           
+          <!-- Prize Pool Banner (BIG USD Display) -->
+          <div class="card bg-gradient-to-br from-green-900/40 via-emerald-900/40 to-green-900/40 border-green-500/50">
+            <div class="text-center">
+              <p class="text-xs sm:text-sm text-green-300 mb-1">💰 PRIZE POOL</p>
+              <div class="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-black text-green-400 mb-2 drop-shadow-[0_0_20px_rgba(34,197,94,0.5)]">
+                {{ currentRound?.prizePoolUsdFormatted || '$0.00' }}
+              </div>
+              
+              <!-- Exchange Rate Warning -->
+              <p class="text-[9px] sm:text-[10px] text-yellow-200/80 italic mb-2">
+                ⚠️ USD value subject to MATIC price fluctuation
+              </p>
+              
+              <!-- Show accumulated if > 0 -->
+              <div v-if="parseFloat(currentRound?.accumulatedMatic || '0') > 0" class="mb-2">
+                <p class="text-xs sm:text-sm text-yellow-300 font-semibold">
+                  🔥 Includes {{ currentRound?.accumulatedUsdFormatted }} accumulated!
+                </p>
+              </div>
+              
+              <p class="text-xs sm:text-sm text-green-200">
+                🏆 Winner takes 80% + accumulated!
+              </p>
+              <p class="text-[10px] sm:text-xs text-gray-400 mt-2">
+                {{ currentRound?.prizePoolMatic || '0' }} MATIC @ ${{ currentRound?.exchangeRate || '0.00' }}/MATIC
+              </p>
+              <button 
+                @click="showRulesModal = true"
+                class="mt-3 text-[10px] sm:text-xs text-purple-400 hover:text-purple-300 underline decoration-dotted hover:decoration-solid transition-all"
+              >
+                📋 View Rules & Prize Distribution
+              </button>
+            </div>
+          </div>
+          
           <!-- Current Round Info -->
           <div class="card">
             <div class="flex justify-between items-center">
@@ -37,39 +72,19 @@
             <!-- Instructions -->
             <div class="bg-blue-900/20 border border-blue-500/30 rounded-lg p-3 sm:p-4 mb-3 sm:mb-4">
               <p class="text-xs sm:text-sm text-blue-300">
-                <strong>How to pick:</strong> Select 6 numbers from the grid below. 
-                The <span class="text-red-400 font-bold">last number</span> you pick is automatically your <strong>Crypto Ball</strong> (must be ≤ 26).
+                <strong>How to pick:</strong> Select any 6 numbers from the grid below (1-69). 
+                <span class="text-gray-300">All balls count equally - choose your lucky numbers!</span>
               </p>
             </div>
             
             <!-- Selection Status -->
             <div class="flex justify-between items-center mb-2 sm:mb-3">
-              <div class="flex gap-2 sm:gap-4">
-                <p class="text-xs sm:text-sm">
-                  <span class="text-purple-400 font-semibold">Regular:</span> 
-                  <span class="text-gray-300">{{ regularNumbers.length }}/5</span>
-                </p>
-                <p class="text-xs sm:text-sm">
-                  <span class="text-red-400 font-semibold">Crypto Ball:</span> 
-                  <span class="text-gray-300">{{ powerball ? powerball : '-' }}</span>
-                </p>
-              </div>
-              <p class="text-xs sm:text-sm text-gray-400">
-                {{ selectedNumbers.length }}/6 total
+              <p class="text-xs sm:text-sm">
+                <span class="text-purple-400 font-semibold">Selected:</span> 
+                <span class="text-gray-300">{{ selectedNumbers.length }}/6 numbers</span>
               </p>
             </div>
 
-            <!-- Error message for invalid crypto ball -->
-            <div v-if="powerballError" class="bg-red-900/30 border border-red-500/50 rounded-lg p-2 sm:p-3 mb-3 sm:mb-4 animate-pulse">
-              <p class="text-xs sm:text-sm text-red-300 font-semibold">⚠️ {{ powerballError }}</p>
-            </div>
-            
-            <!-- Helper text when selecting 6th number -->
-            <div v-if="selectedNumbers.length === 5" class="bg-orange-900/20 border border-orange-500/30 rounded-lg p-2 sm:p-3 mb-3 sm:mb-4">
-              <p class="text-xs sm:text-sm text-orange-300">
-                🔮 <strong>Next number will be your Crypto Ball!</strong> Choose a number between <strong>1-26</strong>
-              </p>
-            </div>
             
             <!-- Single Number Grid (1-69) -->
             <div class="mb-6">
@@ -78,24 +93,15 @@
                   v-for="num in 69"
                   :key="num"
                   @click="toggleNumber(num)"
-                  :disabled="(!selectedNumbers.includes(num) && selectedNumbers.length >= 6) || 
-                             (selectedNumbers.length === 5 && num > 26 && !selectedNumbers.includes(num))"
+                  :disabled="!selectedNumbers.includes(num) && selectedNumbers.length >= 6"
                   :class="[
-                    'number-ball relative',
+                    'number-ball',
                     selectedNumbers.includes(num) 
-                      ? (selectedNumbers.indexOf(num) === 5 ? 'powerball-selected' : 'number-ball-selected')
-                      : 'number-ball-unselected',
-                    (num > 26 && selectedNumbers.length === 5 && !selectedNumbers.includes(num)) ? 'opacity-30 cursor-not-allowed' : ''
+                      ? 'number-ball-selected'
+                      : 'number-ball-unselected'
                   ]"
                 >
                   {{ num }}
-                  <!-- Crypto Ball indicator -->
-                  <span 
-                    v-if="selectedNumbers.indexOf(num) === 5" 
-                    class="absolute -top-0.5 -right-0.5 text-[10px] sm:text-xs bg-red-600 rounded-full w-3 h-3 sm:w-4 sm:h-4 flex items-center justify-center font-bold"
-                  >
-                    C
-                  </span>
                 </button>
               </div>
             </div>
@@ -114,24 +120,13 @@
             <div v-if="selectedNumbers.length > 0" class="bg-gray-900/50 rounded-lg p-3 sm:p-4 mb-4 sm:mb-6">
               <p class="text-xs sm:text-sm text-gray-400 mb-2">Your Selection:</p>
               <div class="flex items-center gap-2 sm:gap-3 flex-wrap">
-                <!-- Regular numbers (first 5) -->
+                <!-- All numbers -->
                 <div
-                  v-for="(num, index) in regularNumbers"
-                  :key="'regular-' + num"
+                  v-for="(num, index) in selectedNumbers.slice().sort((a, b) => a - b)"
+                  :key="'num-' + num"
                   class="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center font-bold text-sm sm:text-base shadow-lg"
                 >
                   {{ num }}
-                </div>
-                <!-- Separator and Crypto Ball -->
-                <span v-if="powerball" class="text-xl sm:text-2xl text-gray-400">+</span>
-                <div
-                  v-if="powerball"
-                  class="relative w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-gradient-to-br from-red-500 to-orange-500 flex items-center justify-center font-bold text-sm sm:text-base shadow-lg border-2 border-red-300"
-                >
-                  {{ powerball }}
-                  <span class="absolute -top-1 -right-1 sm:-top-2 sm:-right-2 text-[10px] sm:text-xs bg-red-600 text-white rounded-full px-1.5 sm:px-2 py-0.5 font-bold shadow">
-                    CB
-                  </span>
                 </div>
               </div>
             </div>
@@ -210,7 +205,7 @@
                     target="_blank" 
                     rel="noopener noreferrer"
                     class="font-mono text-purple-400 hover:text-purple-300 underline decoration-dotted hover:decoration-solid transition-all cursor-pointer inline-flex items-center gap-1"
-                    title="Ver wallet no PolygonScan (verificar saldo e transações)"
+                    title="View wallet on PolygonScan (check balance and transactions)"
                   >
                     {{ receivingWallet }}
                     <svg class="w-3 h-3 sm:w-4 sm:h-4 inline-block" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -225,7 +220,7 @@
               </li>
               <li class="flex gap-2 sm:gap-3">
                 <span class="flex-shrink-0 w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-purple-600 flex items-center justify-center text-[10px] sm:text-xs font-bold">3</span>
-                <span>Choose 6 numbers - the last one is your Powerball (must be ≤ 26)</span>
+                <span>Choose any 6 numbers (1-69). All count equally!</span>
               </li>
               <li class="flex gap-2 sm:gap-3">
                 <span class="flex-shrink-0 w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-purple-600 flex items-center justify-center text-[10px] sm:text-xs font-bold">4</span>
@@ -233,14 +228,14 @@
               </li>
               <li class="flex gap-2 sm:gap-3">
                 <span class="flex-shrink-0 w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-purple-600 flex items-center justify-center text-[10px] sm:text-xs font-bold">5</span>
-                <span>If you win, prize automatically sent to your wallet! 💰</span>
+                <span>Whoever matched the most balls wins 95% of the pool! 💰</span>
               </li>
             </ol>
             
             <!-- Wallet Verification Note -->
             <div class="mt-4 bg-green-900/20 border border-green-500/30 rounded-lg p-3 sm:p-4">
               <p class="text-xs sm:text-sm text-green-300">
-                <span class="font-semibold">💡 Transparência:</span> Clique no endereço da wallet acima para verificar no PolygonScan que ela existe e ver o saldo acumulado das apostas em tempo real!
+                <span class="font-semibold">💡 Transparency:</span> Click on the wallet address above to verify on PolygonScan that it exists and see the accumulated balance from bets in real-time!
               </p>
             </div>
           </div>
@@ -278,15 +273,11 @@
                   <p class="text-[10px] text-gray-400 mb-1">Numbers:</p>
                   <div class="flex items-center gap-1.5 flex-wrap">
                     <div
-                      v-for="num in bet.numbers"
+                      v-for="num in [...bet.numbers, bet.powerball].sort((a, b) => a - b)"
                       :key="num"
                       class="w-7 h-7 rounded-full bg-purple-600/30 border border-purple-500/50 flex items-center justify-center text-xs font-bold"
                     >
                       {{ num }}
-                    </div>
-                    <span class="text-sm text-gray-400">+</span>
-                    <div class="w-7 h-7 rounded-full bg-red-600/30 border border-red-500/50 flex items-center justify-center text-xs font-bold" title="Crypto Ball">
-                      {{ bet.powerball }}
                     </div>
                   </div>
                 </div>
@@ -332,8 +323,148 @@
       <!-- Footer -->
       <footer class="mt-8 sm:mt-12 text-center text-xs sm:text-sm text-gray-400">
         <p class="mb-1 sm:mb-2">🔒 100% Anonymous | ⚡ Instant Payouts | 🔍 Fully Transparent</p>
-        <p class="text-[10px] sm:text-xs">Prize Distribution: 6 matches (50%) | 5 matches (30%) | 4 matches (10%) | 3 matches (5%) | House (5%)</p>
+        <button 
+          @click="showRulesModal = true"
+          class="text-[10px] sm:text-xs text-purple-400 hover:text-purple-300 underline"
+        >
+          📋 View Complete Rules
+        </button>
       </footer>
+    </div>
+
+    <!-- Rules Modal -->
+    <div 
+      v-if="showRulesModal"
+      @click="showRulesModal = false"
+      class="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+    >
+      <div 
+        @click.stop
+        class="bg-gradient-to-br from-gray-900 to-gray-800 border-2 border-purple-500/50 rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl"
+      >
+        <!-- Modal Header -->
+        <div class="sticky top-0 bg-gradient-to-r from-purple-900/90 to-pink-900/90 backdrop-blur-sm border-b border-purple-500/50 p-4 sm:p-6">
+          <div class="flex justify-between items-center">
+            <h2 class="text-xl sm:text-2xl font-bold text-purple-300">📋 CryptoBall Rules</h2>
+            <button 
+              @click="showRulesModal = false"
+              class="text-gray-400 hover:text-white transition-colors text-2xl sm:text-3xl leading-none"
+            >
+              ×
+            </button>
+          </div>
+        </div>
+
+        <!-- Modal Content -->
+        <div class="p-4 sm:p-6 space-y-6">
+          
+          <!-- How to Play -->
+          <section>
+            <h3 class="text-lg sm:text-xl font-bold text-purple-400 mb-3">🎮 How to Play</h3>
+            <ol class="space-y-2 text-sm text-gray-300">
+              <li class="flex gap-3">
+                <span class="flex-shrink-0 w-6 h-6 rounded-full bg-purple-600 flex items-center justify-center text-xs font-bold">1</span>
+                <span>Send {{ betAmount }} MATIC to our receiving wallet</span>
+              </li>
+              <li class="flex gap-3">
+                <span class="flex-shrink-0 w-6 h-6 rounded-full bg-purple-600 flex items-center justify-center text-xs font-bold">2</span>
+                <span>Choose any 6 numbers (1-69). <strong>All count equally!</strong></span>
+              </li>
+              <li class="flex gap-3">
+                <span class="flex-shrink-0 w-6 h-6 rounded-full bg-purple-600 flex items-center justify-center text-xs font-bold">3</span>
+                <span>Paste your transaction hash and submit your bet</span>
+              </li>
+              <li class="flex gap-3">
+                <span class="flex-shrink-0 w-6 h-6 rounded-full bg-purple-600 flex items-center justify-center text-xs font-bold">4</span>
+                <span>Wait for the official lottery draw (Monday, Wednesday, Saturday at 10:59 PM ET)</span>
+              </li>
+              <li class="flex gap-3">
+                <span class="flex-shrink-0 w-6 h-6 rounded-full bg-purple-600 flex items-center justify-center text-xs font-bold">5</span>
+                <span>Winners receive prizes automatically to their wallet! 💰</span>
+              </li>
+            </ol>
+          </section>
+
+          <!-- Prize Distribution -->
+          <section class="bg-gradient-to-r from-yellow-900/30 to-orange-900/30 border border-yellow-500/50 rounded-lg p-4">
+            <h3 class="text-lg sm:text-xl font-bold text-yellow-400 mb-3">🏆 Prize Distribution Strategy</h3>
+            
+            <div class="space-y-3 text-sm text-yellow-100">
+              <p class="font-semibold text-yellow-200">Whoever matched the MOST balls wins!</p>
+              
+              <div class="bg-black/30 rounded p-3 space-y-2">
+                <p><strong>✅ Winner(s):</strong> Take <span class="text-green-400 font-bold text-lg">80%</span> of new bets + <span class="text-yellow-400 font-bold text-lg">ALL accumulated</span></p>
+                <p><strong>🔄 Rollover:</strong> <span class="text-blue-400 font-bold">15%</span> accumulates to next round</p>
+                <p><strong>🏠 House Fee:</strong> <span class="text-orange-400 font-bold">5%</span> (operational costs)</p>
+              </div>
+
+              <div class="bg-blue-900/30 rounded p-3 mt-3 mb-3">
+                <p class="text-xs text-blue-200">
+                  <strong>⚠️ Important:</strong> All 6 numbers count equally. It doesn't matter which specific numbers you matched or in what order. 
+                  Only the <strong>total number of matches</strong> matters!
+                </p>
+              </div>
+
+              <div class="space-y-2 mt-4">
+                <p class="font-semibold text-yellow-200">Examples:</p>
+                <ul class="space-y-1.5 ml-4 text-xs">
+                  <li>• <strong>1 person matched 6/6 balls</strong> → Takes 80% + accumulated alone</li>
+                  <li>• <strong>3 people matched 6/6 balls</strong> → Split 80% + accumulated equally</li>
+                  <li>• <strong>Nobody matched 6/6, but 2 matched 5/6</strong> → Those 2 split the prize</li>
+                  <li>• <strong>Nobody matched 6 or 5, but 1 matched 4/6</strong> → Takes 80% + accumulated alone</li>
+                  <li>• <strong>Nobody matched ANY balls</strong> → 100% rolls to next round (jackpot grows!)</li>
+                </ul>
+              </div>
+              
+              <div class="bg-green-900/30 rounded p-3 mt-3">
+                <p class="text-xs text-green-200">
+                  <strong>💡 Jackpot Effect:</strong> 15% always accumulates, creating growing jackpots! 
+                  The longer without a winner, the bigger the prize gets!
+                </p>
+              </div>
+            </div>
+          </section>
+
+          <!-- Important Notes -->
+          <section>
+            <h3 class="text-lg sm:text-xl font-bold text-blue-400 mb-3">⚠️ Important Notes</h3>
+            <ul class="space-y-2 text-sm text-gray-300 ml-4 list-disc">
+              <li>Each transaction can only be used once</li>
+              <li>Your bet must be placed before the draw date</li>
+              <li>Minimum bet: {{ betAmount }} MATIC</li>
+              <li>You must choose exactly 6 numbers (1-69)</li>
+              <li><strong>All 6 numbers count equally</strong> - no number is more important than another</li>
+              <li>Only the <strong>total number of matches</strong> matters, not which specific numbers or order</li>
+              <li>All transactions are validated on Polygon blockchain</li>
+              <li>Prizes are automatically sent to the wallet that made the bet</li>
+              <li>Stay anonymous - only your wallet address is recorded</li>
+            </ul>
+          </section>
+
+          <!-- Transparency -->
+          <section class="bg-green-900/20 border border-green-500/30 rounded-lg p-4">
+            <h3 class="text-lg sm:text-xl font-bold text-green-400 mb-3">🔍 Transparency & Security</h3>
+            <ul class="space-y-2 text-sm text-green-200 ml-4 list-disc">
+              <li>All bets are verified on Polygon blockchain</li>
+              <li>You can verify the receiving wallet balance on PolygonScan</li>
+              <li>Winning numbers come from official lottery results</li>
+              <li>Prize distribution is automatic and transparent</li>
+              <li>No registration required - fully anonymous</li>
+            </ul>
+          </section>
+
+        </div>
+
+        <!-- Modal Footer -->
+        <div class="sticky bottom-0 bg-gradient-to-r from-gray-900/90 to-gray-800/90 backdrop-blur-sm border-t border-purple-500/50 p-4 text-center">
+          <button 
+            @click="showRulesModal = false"
+            class="btn btn-primary"
+          >
+            Got it! Let's Play 🎰
+          </button>
+        </div>
+      </div>
     </div>
   </div>
 </template>
@@ -343,11 +474,9 @@ import { ref, computed, onMounted } from 'vue';
 import axios from 'axios';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
-const receivingWallet = import.meta.env.VITE_RECEIVING_WALLET || '0x49Ebd6bf6a1eF004dab7586CE0680eab9e1aFbCb';
-const betAmount = import.meta.env.VITE_BET_AMOUNT || '0.1';
 
 // State
-const selectedNumbers = ref([]); // All 6 numbers (first 5 are regular, 6th is powerball)
+const selectedNumbers = ref([]); // All 6 numbers
 const transactionId = ref('');
 const nickname = ref('');
 const currentRound = ref(null);
@@ -356,24 +485,16 @@ const loadingBets = ref(false);
 const isSubmitting = ref(false);
 const successMessage = ref('');
 const errorMessage = ref('');
-const powerballError = ref('');
+const showRulesModal = ref(false);
+
+// Config from backend
+const receivingWallet = ref('0x49Ebd6bf6a1eF004dab7586CE0680eab9e1aFbCb');
+const betAmount = ref('0.1');
 
 // Computed
-const regularNumbers = computed(() => selectedNumbers.value.slice(0, 5));
-const powerball = computed(() => selectedNumbers.value.length === 6 ? selectedNumbers.value[5] : null);
-
 const isValidBet = computed(() => {
   if (selectedNumbers.value.length !== 6) return false;
   if (!transactionId.value.trim()) return false;
-  
-  // Check if crypto ball (last number) is valid (1-26)
-  const pb = selectedNumbers.value[5];
-  if (pb > 26) {
-    powerballError.value = 'Crypto Ball must be between 1-26';
-    return false;
-  }
-  
-  powerballError.value = '';
   return true;
 });
 
@@ -384,39 +505,23 @@ function toggleNumber(num) {
   if (index > -1) {
     // Remove number
     selectedNumbers.value.splice(index, 1);
-    powerballError.value = '';
   } else if (selectedNumbers.value.length < 6) {
-    // Check if this will be the 6th number (crypto ball)
-    if (selectedNumbers.value.length === 5 && num > 26) {
-      // Don't allow numbers > 26 as crypto ball
-      powerballError.value = 'Crypto Ball must be between 1-26. Please select a number ≤ 26.';
-      return;
-    }
-    
     // Add number
     selectedNumbers.value.push(num);
-    powerballError.value = '';
   }
 }
 
 function quickPick() {
   const numbers = [];
   
-  // Pick 5 regular numbers (1-69)
-  while (numbers.length < 5) {
+  // Pick 6 random numbers (1-69)
+  while (numbers.length < 6) {
     const num = Math.floor(Math.random() * 69) + 1;
     if (!numbers.includes(num)) {
       numbers.push(num);
     }
   }
   
-  // Pick 1 crypto ball (1-26)
-  let cryptoBall;
-  do {
-    cryptoBall = Math.floor(Math.random() * 26) + 1;
-  } while (numbers.includes(cryptoBall));
-  
-  numbers.push(cryptoBall);
   selectedNumbers.value = numbers;
 }
 
@@ -428,9 +533,14 @@ async function placeBet() {
   errorMessage.value = '';
   
   try {
+    // Sort numbers and send last one as powerball
+    const sortedNumbers = selectedNumbers.value.slice().sort((a, b) => a - b);
+    const numbers = sortedNumbers.slice(0, 5);
+    const powerball = sortedNumbers[5];
+    
     const response = await axios.post(`${API_URL}/bets`, {
-      numbers: regularNumbers.value.sort((a, b) => a - b),
-      powerball: powerball.value,
+      numbers,
+      powerball,
       transactionId: transactionId.value.trim(),
       nickname: nickname.value.trim() || null
     });
@@ -455,7 +565,6 @@ function resetForm() {
   nickname.value = '';
   successMessage.value = '';
   errorMessage.value = '';
-  powerballError.value = '';
 }
 
 async function loadCurrentRound() {
@@ -479,6 +588,20 @@ async function loadRecentBets() {
   }
 }
 
+async function loadConfig() {
+  try {
+    const response = await axios.get(`${API_URL}/config`);
+    if (response.data.success) {
+      receivingWallet.value = response.data.data.receivingWallet;
+      betAmount.value = response.data.data.betAmount;
+      console.log('✅ Config loaded:', response.data.data);
+    }
+  } catch (error) {
+    console.error('Error loading config:', error);
+    // Keep default values if config fails to load
+  }
+}
+
 function formatDrawDate(date) {
   if (!date) return 'Loading...';
   const d = new Date(date);
@@ -497,7 +620,8 @@ function formatTime(timestamp) {
 }
 
 // Load data on mount
-onMounted(() => {
+onMounted(async () => {
+  await loadConfig(); // Load config first
   loadCurrentRound();
   loadRecentBets();
   

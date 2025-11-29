@@ -1,15 +1,14 @@
 import Bet from '../models/Bet.js';
 import { sendPayment } from './blockchainService.js';
 
-// Prize distribution percentages
-const HOUSE_FEE = 0.05;          // 5%
-const PRIZE_6_MATCHES = 0.50;    // 50%
-const PRIZE_5_MATCHES = 0.30;    // 30%
-const PRIZE_4_MATCHES = 0.10;    // 10%
-const PRIZE_3_MATCHES = 0.05;    // 5%
+// Prize distribution percentages - ACCUMULATION STRATEGY
+const HOUSE_FEE = 0.05;           // 5% always goes to the house
+const WINNER_PERCENTAGE = 0.80;   // 80% goes to winners (whoever matched most balls)
+const ROLLOVER_PERCENTAGE = 0.15; // 15% accumulates to next round
 
 /**
  * Calculate winners for a finalized round
+ * NEW STRATEGY: Group by number of matches and find the highest tier with winners
  */
 export async function calculateWinners(round) {
   try {
@@ -18,12 +17,18 @@ export async function calculateWinners(round) {
       isValidated: true
     });
     
-    const winners = {
-      sixMatches: [],
-      fiveMatches: [],
-      fourMatches: [],
-      threeMatches: []
+    // Group winners by match count
+    const winnersByMatches = {
+      6: [],
+      5: [],
+      4: [],
+      3: [],
+      2: [],
+      1: [],
+      0: []
     };
+    
+    let maxMatches = 0;
     
     for (const bet of bets) {
       const matches = countMatches(
@@ -36,13 +41,21 @@ export async function calculateWinners(round) {
       bet.matches = matches;
       await bet.save();
       
-      if (matches === 6) winners.sixMatches.push(bet);
-      else if (matches === 5) winners.fiveMatches.push(bet);
-      else if (matches === 4) winners.fourMatches.push(bet);
-      else if (matches === 3) winners.threeMatches.push(bet);
+      winnersByMatches[matches].push(bet);
+      if (matches > maxMatches) {
+        maxMatches = matches;
+      }
     }
     
-    return winners;
+    return {
+      winnersByMatches,
+      maxMatches,
+      // Legacy format for compatibility
+      sixMatches: winnersByMatches[6],
+      fiveMatches: winnersByMatches[5],
+      fourMatches: winnersByMatches[4],
+      threeMatches: winnersByMatches[3]
+    };
   } catch (error) {
     console.error('Error calculating winners:', error);
     throw error;
@@ -72,6 +85,10 @@ function countMatches(betNumbers, betPowerball, winningNumbers, winningPowerball
 
 /**
  * Calculate and distribute prizes
+ * ACCUMULATION STRATEGY: 80% goes to whoever matched the most balls (divided among them)
+ *                        15% accumulates to next round
+ *                        5% goes to the house
+ *                        If nobody matched any balls, 100% rolls to next round
  */
 export async function distributePrizes(round, winners) {
   try {
@@ -81,50 +98,70 @@ export async function distributePrizes(round, winners) {
       isValidated: true
     });
     
-    let totalPool = 0;
+    let totalBetsPool = 0;
     for (const bet of bets) {
-      totalPool += parseFloat(bet.transactionValue);
+      totalBetsPool += parseFloat(bet.transactionValue);
     }
     
-    // Deduct house fee
-    const houseFee = totalPool * HOUSE_FEE;
-    const prizePool = totalPool - houseFee;
+    // Add accumulated amount from previous round
+    const previousAccumulated = parseFloat(round.accumulatedAmount || '0');
+    const totalPool = totalBetsPool + previousAccumulated;
     
-    console.log(`Total pool: ${totalPool} MATIC`);
-    console.log(`House fee: ${houseFee} MATIC`);
-    console.log(`Prize pool: ${prizePool} MATIC`);
+    // Calculate distributions
+    const houseFee = totalBetsPool * HOUSE_FEE; // 5% only from new bets
+    const rolloverAmount = totalBetsPool * ROLLOVER_PERCENTAGE; // 15% for next round
+    const prizePool = totalBetsPool * WINNER_PERCENTAGE + previousAccumulated; // 80% + accumulated
+    
+    console.log(`\n💰 PRIZE DISTRIBUTION - Round ${round.roundId}`);
+    console.log(`New bets: ${totalBetsPool.toFixed(6)} MATIC`);
+    console.log(`Accumulated from previous: ${previousAccumulated.toFixed(6)} MATIC`);
+    console.log(`Total pool: ${totalPool.toFixed(6)} MATIC`);
+    console.log(`House fee (5% of new bets): ${houseFee.toFixed(6)} MATIC`);
+    console.log(`Rollover to next round (15%): ${rolloverAmount.toFixed(6)} MATIC`);
+    console.log(`Prize pool (80% + accumulated): ${prizePool.toFixed(6)} MATIC`);
     
     round.totalPrizePool = totalPool.toString();
-    await round.save();
+    round.rolloverAmount = rolloverAmount.toString();
     
-    // Calculate prizes for each tier
-    await distributeTierPrizes(winners.sixMatches, prizePool * PRIZE_6_MATCHES, 6);
-    await distributeTierPrizes(winners.fiveMatches, prizePool * PRIZE_5_MATCHES, 5);
-    await distributeTierPrizes(winners.fourMatches, prizePool * PRIZE_4_MATCHES, 4);
-    await distributeTierPrizes(winners.threeMatches, prizePool * PRIZE_3_MATCHES, 3);
+    // Find the highest tier with winners
+    const { maxMatches, winnersByMatches } = winners;
     
-    console.log('✅ Prizes calculated and distributed');
-  } catch (error) {
-    console.error('Error distributing prizes:', error);
-    throw error;
-  }
-}
-
-/**
- * Distribute prizes for a specific tier
- */
-async function distributeTierPrizes(winners, tierPool, matches) {
-  try {
-    if (winners.length === 0) {
-      console.log(`No winners for ${matches} matches`);
+    console.log(`Maximum matches: ${maxMatches}`);
+    
+    // If nobody matched any balls (maxMatches = 0), everything rolls over
+    if (maxMatches === 0) {
+      const nextRollover = prizePool + rolloverAmount; // Everything goes to next round
+      console.log('🔄 No winners - 100% rolls to next round');
+      console.log(`Next round accumulated: ${nextRollover.toFixed(6)} MATIC`);
+      
+      round.winners = {
+        sixMatches: 0,
+        fiveMatches: 0,
+        fourMatches: 0,
+        threeMatches: 0
+      };
+      round.rolloverAmount = nextRollover.toString();
+      await round.save();
       return;
     }
     
-    const prizePerWinner = tierPool / winners.length;
+    // Get winners from the highest matching tier
+    const topWinners = winnersByMatches[maxMatches];
     
-    console.log(`${matches} matches: ${winners.length} winners, ${prizePerWinner} MATIC each`);
+    if (topWinners.length === 0) {
+      console.log('⚠️ No winners found in top tier');
+      return;
+    }
     
-    for (const bet of winners) {
+    // Distribute prize pool among top winners
+    const prizePerWinner = prizePool / topWinners.length;
+    
+    console.log(`\n🏆 ${topWinners.length} winner(s) with ${maxMatches} matches`);
+    console.log(`Prize per winner: ${prizePerWinner.toFixed(6)} MATIC (80% + accumulated)`);
+    console.log(`Rollover to next: ${rolloverAmount.toFixed(6)} MATIC (15%)`);
+    
+    // Pay winners
+    for (const bet of topWinners) {
       bet.prizeAmount = prizePerWinner.toString();
       await bet.save();
       
@@ -137,17 +174,29 @@ async function distributeTierPrizes(winners, tierPool, matches) {
         bet.paymentDate = new Date();
         await bet.save();
         
-        console.log(`✅ Paid ${prizePerWinner} MATIC to ${bet.fromAddress} (${bet.nickname || 'Anonymous'})`);
+        console.log(`✅ Paid ${prizePerWinner.toFixed(6)} MATIC to ${bet.fromAddress} (${bet.nickname || 'Anonymous'})`);
       } catch (paymentError) {
-        console.error(`Failed to pay ${bet.fromAddress}:`, paymentError.message);
+        console.error(`❌ Failed to pay ${bet.fromAddress}:`, paymentError.message);
         // Prize amount is saved, can be paid manually later
       }
     }
+    
+    // Update round statistics
+    round.winners = {
+      sixMatches: winnersByMatches[6].length,
+      fiveMatches: winnersByMatches[5].length,
+      fourMatches: winnersByMatches[4].length,
+      threeMatches: winnersByMatches[3].length
+    };
+    await round.save();
+    
+    console.log('✅ Prizes calculated and distributed\n');
   } catch (error) {
-    console.error('Error in distributeTierPrizes:', error);
+    console.error('Error distributing prizes:', error);
     throw error;
   }
 }
+
 
 /**
  * Manually pay a specific bet

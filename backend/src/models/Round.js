@@ -20,6 +20,8 @@ class RoundModel {
       finalizedAt: roundData.finalizedAt || null,
       totalBets: roundData.totalBets || 0,
       totalPrizePool: roundData.totalPrizePool || '0',
+      accumulatedAmount: roundData.accumulatedAmount || '0',
+      rolloverAmount: roundData.rolloverAmount || '0',
       winners: roundData.winners || {
         sixMatches: 0,
         fiveMatches: 0,
