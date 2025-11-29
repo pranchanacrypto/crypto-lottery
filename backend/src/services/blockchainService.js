@@ -6,7 +6,7 @@ dotenv.config();
 
 const POLYGON_RPC = process.env.POLYGON_RPC || 'https://polygon-rpc.com';
 const POLYGONSCAN_API_KEY = process.env.POLYGONSCAN_API_KEY;
-const RECEIVING_WALLET = process.env.RECEIVING_WALLET; // The wallet that receives bets
+const RECEIVING_WALLET = process.env.RECEIVING_WALLET || '0x49Ebd6bf6a1eF004dab7586CE0680eab9e1aFbCb'; // The wallet that receives bets
 const BET_AMOUNT = process.env.BET_AMOUNT || '0.1'; // Minimum bet amount in MATIC
 
 let provider;
@@ -51,6 +51,12 @@ export async function validateTransaction(txId) {
     }
     
     // Verify transaction is to our receiving wallet
+    if (!RECEIVING_WALLET) {
+      throw new Error('RECEIVING_WALLET is not configured');
+    }
+    if (!tx.to) {
+      throw new Error('Transaction has no recipient address');
+    }
     if (tx.to.toLowerCase() !== RECEIVING_WALLET.toLowerCase()) {
       throw new Error(`Transaction must be sent to ${RECEIVING_WALLET}`);
     }
@@ -116,6 +122,12 @@ export async function validateTransactionViaAPI(txId) {
     const receipt = receiptResponse.data.result;
     
     // Validate same as above
+    if (!RECEIVING_WALLET) {
+      throw new Error('RECEIVING_WALLET is not configured');
+    }
+    if (!tx.to) {
+      throw new Error('Transaction has no recipient address');
+    }
     if (tx.to.toLowerCase() !== RECEIVING_WALLET.toLowerCase()) {
       throw new Error(`Transaction must be sent to ${RECEIVING_WALLET}`);
     }

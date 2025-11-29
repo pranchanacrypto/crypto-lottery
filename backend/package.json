@@ -6,7 +6,9 @@
   "type": "module",
   "scripts": {
     "dev": "nodemon src/index.js",
-    "start": "node src/index.js"
+    "start": "node src/index.js",
+    "debug": "node --inspect src/index.js",
+    "debug-brk": "node --inspect-brk src/index.js"
   },
   "dependencies": {
     "express": "^4.18.2",

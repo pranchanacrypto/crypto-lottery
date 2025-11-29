@@ -65,22 +65,23 @@ export const BetStorage = {
     });
   },
 
-  async find(query) {
+  async find(query = {}) {
     const bets = await this.findAll();
     return bets.filter(bet => {
+      if (!bet) return false;
       if (query.roundId !== undefined && bet.roundId !== query.roundId) return false;
       if (query.isValidated !== undefined && bet.isValidated !== query.isValidated) return false;
       if (query.isPaid !== undefined && bet.isPaid !== query.isPaid) return false;
       if (query.matches !== undefined) {
-        if (query.matches.$gte !== undefined && bet.matches < query.matches.$gte) return false;
+        if (query.matches.$gte !== undefined && (bet.matches === null || bet.matches < query.matches.$gte)) return false;
       }
       if (query.prizeAmount !== undefined) {
-        if (query.prizeAmount.$gt !== undefined && parseFloat(bet.prizeAmount) <= parseFloat(query.prizeAmount.$gt)) return false;
+        if (query.prizeAmount.$gt !== undefined && parseFloat(bet.prizeAmount || '0') <= parseFloat(query.prizeAmount.$gt)) return false;
       }
       return true;
     }).sort((a, b) => {
       // Sort by betPlacedAt descending by default
-      return new Date(b.betPlacedAt) - new Date(a.betPlacedAt);
+      return new Date(b.betPlacedAt || 0) - new Date(a.betPlacedAt || 0);
     });
   },
 
