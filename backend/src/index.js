@@ -6,6 +6,7 @@ import cron from 'node-cron';
 import betRoutes from './routes/bets.js';
 import powerballRoutes from './routes/powerball.js';
 import { checkPowerballResults } from './services/powerballService.js';
+import { connectDB } from './storage/mongoStorage.js';
 
 dotenv.config();
 
@@ -49,7 +50,11 @@ app.use((req, res, next) => {
 
 app.use(express.json());
 
-console.log('✅ Using JSON file storage (no MongoDB required)');
+// Connect to MongoDB
+connectDB().catch(err => {
+  console.error('❌ Failed to connect to MongoDB:', err.message);
+  process.exit(1);
+});
 
 // Routes
 app.use('/api/bets', betRoutes);
@@ -61,7 +66,7 @@ app.get('/api/health', (req, res) => {
     status: 'ok', 
     timestamp: new Date().toISOString(),
     service: 'crypto-lottery-backend-v2',
-    storage: 'JSON files'
+    storage: 'MongoDB'
   });
 });
 
@@ -93,7 +98,7 @@ cron.schedule('0 23 * * *', async () => {
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
   console.log(`📍 http://localhost:${PORT}`);
-  console.log(`💾 Storage: JSON files in backend/data/`);
+  console.log(`💾 Storage: MongoDB`);
   console.log(`🌐 CORS: Enabled for all localhost origins`);
 });
 

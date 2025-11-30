@@ -1,4 +1,4 @@
-import { PowerballResultStorage } from '../storage/jsonStorage.js';
+import { PowerballResultStorage } from '../storage/mongoStorage.js';
 
 /**
  * PowerballResult model wrapper for JSON storage

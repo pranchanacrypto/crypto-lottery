@@ -1,4 +1,4 @@
-import { RoundStorage } from '../storage/jsonStorage.js';
+import { RoundStorage } from '../storage/mongoStorage.js';
 
 /**
  * Round model wrapper for JSON storage

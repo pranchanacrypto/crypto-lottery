@@ -1,4 +1,4 @@
-import { BetStorage } from '../storage/jsonStorage.js';
+import { BetStorage } from '../storage/mongoStorage.js';
 
 /**
  * Bet model wrapper for JSON storage
