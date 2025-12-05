@@ -118,7 +118,6 @@ async function processRoundResults(powerballResult) {
     
     // Update round with winning numbers
     round.winningNumbers = powerballResult.numbers;
-    round.winningPowerball = powerballResult.powerball;
     round.isFinalized = true;
     round.finalizedAt = new Date();
     
@@ -205,14 +204,13 @@ function getNextPowerballDrawDate() {
 }
 
 /**
- * Manual entry of Powerball results
+ * Manual entry of lottery results
  */
-export async function manualEntryResults(drawDate, numbers, powerball) {
+export async function manualEntryResults(drawDate, numbers) {
   try {
     const result = await PowerballResult.create({
       drawDate: new Date(drawDate),
       numbers,
-      powerball,
       processed: false
     });
     

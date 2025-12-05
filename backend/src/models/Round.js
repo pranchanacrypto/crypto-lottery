@@ -15,7 +15,6 @@ class RoundModel {
       startTime: roundData.startTime,
       drawDate: roundData.drawDate,
       winningNumbers: roundData.winningNumbers || [],
-      winningPowerball: roundData.winningPowerball || null,
       isFinalized: roundData.isFinalized || false,
       finalizedAt: roundData.finalizedAt || null,
       totalBets: roundData.totalBets || 0,

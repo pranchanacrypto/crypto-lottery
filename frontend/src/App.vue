@@ -65,14 +65,42 @@
             </div>
           </div>
 
-          <!-- Number Picker -->
+          <!-- Bet Mode Tabs -->
           <div class="card">
+            <div class="flex gap-2 mb-4">
+              <button
+                @click="betMode = 'single'"
+                :class="[
+                  'flex-1 py-3 px-4 rounded-lg font-semibold transition-all',
+                  betMode === 'single'
+                    ? 'bg-purple-600 text-white'
+                    : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                ]"
+              >
+                🎯 Single Bet
+              </button>
+              <button
+                @click="betMode = 'multiple'"
+                :class="[
+                  'flex-1 py-3 px-4 rounded-lg font-semibold transition-all',
+                  betMode === 'multiple'
+                    ? 'bg-purple-600 text-white'
+                    : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                ]"
+              >
+                🎰 Multiple Bets
+              </button>
+            </div>
+          </div>
+
+          <!-- Single Bet Mode -->
+          <div v-if="betMode === 'single'" class="card">
             <h3 class="text-lg sm:text-xl font-bold mb-3 sm:mb-4">Choose Your Numbers</h3>
             
             <!-- Instructions -->
             <div class="bg-blue-900/20 border border-blue-500/30 rounded-lg p-3 sm:p-4 mb-3 sm:mb-4">
               <p class="text-xs sm:text-sm text-blue-300">
-                <strong>How to pick:</strong> Select any 6 numbers from the grid below (1-69). 
+                <strong>How to pick:</strong> Select any 6 numbers from the grid below (1-60). 
                 <span class="text-gray-300">All balls count equally - choose your lucky numbers!</span>
               </p>
             </div>
@@ -86,11 +114,11 @@
             </div>
 
             
-            <!-- Single Number Grid (1-69) -->
+            <!-- Single Number Grid (1-60) -->
             <div class="mb-6">
               <div class="grid grid-cols-7 sm:grid-cols-8 md:grid-cols-10 gap-1.5 sm:gap-2">
                 <button
-                  v-for="num in 69"
+                  v-for="num in 60"
                   :key="num"
                   @click="toggleNumber(num)"
                   :disabled="!selectedNumbers.includes(num) && selectedNumbers.length >= 6"
@@ -131,22 +159,6 @@
               </div>
             </div>
 
-            <!-- Transaction ID Input -->
-            <div class="mb-3 sm:mb-4">
-              <label class="block text-xs sm:text-sm font-semibold text-gray-300 mb-1.5 sm:mb-2">
-                Transaction ID <span class="text-red-400">*</span>
-              </label>
-              <input
-                v-model="transactionId"
-                type="text"
-                placeholder="Paste your Polygon transaction hash (0x...)"
-                class="input text-sm"
-              />
-              <p class="text-[10px] sm:text-xs text-gray-400 mt-1 break-all">
-                Send {{ betAmount }} MATIC to: <span class="font-mono text-purple-400">{{ receivingWallet }}</span>
-              </p>
-            </div>
-
             <!-- Nickname Input -->
             <div class="mb-4 sm:mb-6">
               <label class="block text-xs sm:text-sm font-semibold text-gray-300 mb-1.5 sm:mb-2">
@@ -164,13 +176,121 @@
             <!-- Submit Button -->
             <button
               @click="placeBet"
-              :disabled="!isValidBet || isSubmitting"
+              :disabled="!isValidBet || isSubmitting || showingQRCode"
               class="btn btn-primary w-full text-base sm:text-lg"
             >
-              <span v-if="isSubmitting">⏳ Submitting...</span>
-              <span v-else-if="!isValidBet">Complete All Fields</span>
-              <span v-else>🎰 Place Bet</span>
+              <span v-if="isSubmitting">⏳ Processing...</span>
+              <span v-else-if="showingQRCode">✓ Awaiting Payment...</span>
+              <span v-else-if="!isValidBet">Select 6 Numbers First</span>
+              <span v-else>💳 Continue to Payment</span>
             </button>
+          </div>
+
+          <!-- Multiple Bets Mode -->
+          <div v-if="betMode === 'multiple'" class="card">
+            <h3 class="text-lg sm:text-xl font-bold mb-3 sm:mb-4">Generate Multiple Bets</h3>
+            
+            <!-- Instructions -->
+            <div class="bg-blue-900/20 border border-blue-500/30 rounded-lg p-3 sm:p-4 mb-3 sm:mb-4">
+              <p class="text-xs sm:text-sm text-blue-300">
+                <strong>⚡ For Professional Players:</strong> Generate multiple random bets at once! 
+                <span class="text-gray-300">Perfect for those who want to play many combinations quickly.</span>
+              </p>
+            </div>
+
+            <!-- Bet Count Input -->
+            <div class="mb-4">
+              <label class="block text-xs sm:text-sm font-semibold text-gray-300 mb-2">
+                How many bets do you want to make? <span class="text-red-400">*</span>
+              </label>
+              <div class="flex gap-2">
+                <input
+                  v-model.number="multiBetCount"
+                  type="number"
+                  min="1"
+                  max="100"
+                  placeholder="Enter number (1-100)"
+                  class="input text-sm flex-1"
+                />
+                <button
+                  @click="generateMultipleBets"
+                  class="btn bg-purple-600 hover:bg-purple-700 text-white px-6"
+                >
+                  🎲 Generate
+                </button>
+              </div>
+              <p class="text-[10px] sm:text-xs text-gray-400 mt-1">
+                Each bet costs {{ betAmount }} MATIC
+              </p>
+            </div>
+
+            <!-- Generated Bets Preview -->
+            <div v-if="generatedBets.length > 0" class="mb-4">
+              <div class="bg-green-900/20 border border-green-500/30 rounded-lg p-3 sm:p-4 mb-3">
+                <p class="text-sm font-semibold text-green-400 mb-1">
+                  ✅ {{ generatedBets.length }} bets generated!
+                </p>
+                <p class="text-xs text-gray-300">
+                  Total amount: <span class="font-bold text-green-400">{{ totalMultiBetAmount }} MATIC</span>
+                </p>
+              </div>
+
+              <!-- Preview of all bets -->
+              <div class="bg-gray-900/50 rounded-lg p-3 sm:p-4 mb-4 max-h-[400px] overflow-y-auto">
+                <p class="text-xs text-gray-400 mb-2">All Generated Bets:</p>
+                <div class="space-y-2">
+                  <div
+                    v-for="bet in generatedBets"
+                    :key="bet.id"
+                    class="flex items-center gap-2 bg-gray-800/50 rounded p-2"
+                  >
+                    <span class="text-xs text-gray-500 font-mono w-8">#{{ bet.id }}</span>
+                    <div class="flex gap-1.5 flex-wrap">
+                      <div
+                        v-for="num in bet.numbers"
+                        :key="num"
+                        class="w-7 h-7 rounded-full bg-purple-600/30 border border-purple-500/50 flex items-center justify-center text-xs font-bold"
+                      >
+                        {{ num }}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Nickname -->
+              <div class="mb-4 sm:mb-6">
+                <label class="block text-xs sm:text-sm font-semibold text-gray-300 mb-1.5 sm:mb-2">
+                  Nickname <span class="text-gray-500">(Optional)</span>
+                </label>
+                <input
+                  v-model="multiNickname"
+                  type="text"
+                  maxlength="50"
+                  placeholder="Enter a nickname"
+                  class="input text-sm"
+                />
+              </div>
+
+              <!-- Total Amount Display -->
+              <div class="bg-green-900/30 border border-green-500/50 rounded-lg p-3 mb-4">
+                <p class="text-sm text-green-300 text-center">
+                  Total Amount: <span class="font-bold text-lg text-green-400">{{ totalMultiBetAmount }} MATIC</span>
+                </p>
+              </div>
+
+              <!-- Submit Button -->
+              <button
+                @click="placeMultipleBets"
+                :disabled="!isValidMultiBet || isSubmitting || showingQRCode"
+                class="btn btn-primary w-full text-base sm:text-lg"
+              >
+                <span v-if="isSubmitting">⏳ Processing...</span>
+                <span v-else-if="showingQRCode">✓ Awaiting Payment...</span>
+                <span v-else-if="!isValidMultiBet">Generate Bets First</span>
+                <span v-else>💳 Continue to Payment ({{ totalMultiBetAmount }} MATIC)</span>
+              </button>
+            </div>
           </div>
 
           <!-- Success/Error Messages -->
@@ -220,7 +340,7 @@
               </li>
               <li class="flex gap-2 sm:gap-3">
                 <span class="flex-shrink-0 w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-purple-600 flex items-center justify-center text-[10px] sm:text-xs font-bold">3</span>
-                <span>Choose any 6 numbers (1-69). All count equally!</span>
+                <span>Choose any 6 numbers (1-60). All count equally!</span>
               </li>
               <li class="flex gap-2 sm:gap-3">
                 <span class="flex-shrink-0 w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-purple-600 flex items-center justify-center text-[10px] sm:text-xs font-bold">4</span>
@@ -273,7 +393,7 @@
                   <p class="text-[10px] text-gray-400 mb-1">Numbers:</p>
                   <div class="flex items-center gap-1.5 flex-wrap">
                     <div
-                      v-for="num in [...bet.numbers, bet.powerball].sort((a, b) => a - b)"
+                      v-for="num in bet.numbers.sort((a, b) => a - b)"
                       :key="num"
                       class="w-7 h-7 rounded-full bg-purple-600/30 border border-purple-500/50 flex items-center justify-center text-xs font-bold"
                     >
@@ -332,6 +452,99 @@
       </footer>
     </div>
 
+    <!-- QR Code Payment Modal -->
+    <div 
+      v-if="showingQRCode && paymentSession"
+      class="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+    >
+      <div 
+        @click.stop
+        class="bg-gradient-to-br from-gray-900 to-gray-800 border-2 border-purple-500/50 rounded-2xl max-w-md w-full shadow-2xl"
+      >
+        <!-- Modal Header -->
+        <div class="bg-gradient-to-r from-purple-900/90 to-pink-900/90 backdrop-blur-sm border-b border-purple-500/50 p-4 sm:p-6">
+          <div class="text-center">
+            <h2 class="text-xl sm:text-2xl font-bold text-purple-300 mb-2">💳 Complete Payment</h2>
+            <p class="text-sm text-gray-300">
+              Scan QR Code with your crypto wallet
+            </p>
+          </div>
+        </div>
+
+        <!-- Modal Content -->
+        <div class="p-6 space-y-4">
+          
+          <!-- QR Code -->
+          <div class="flex justify-center bg-white rounded-xl p-4">
+            <img :src="qrCodeDataUrl" alt="Payment QR Code" class="w-64 h-64" />
+          </div>
+
+          <!-- Payment Details -->
+          <div class="bg-gray-900/50 rounded-lg p-4 space-y-2">
+            <div class="flex justify-between items-center">
+              <span class="text-sm text-gray-400">Amount:</span>
+              <span class="text-lg font-bold text-green-400">{{ paymentSession.totalAmount }} MATIC</span>
+            </div>
+            <div class="flex justify-between items-center">
+              <span class="text-sm text-gray-400">Bets:</span>
+              <span class="font-semibold text-purple-400">{{ paymentSession.betCount }}</span>
+            </div>
+            <div class="flex justify-between items-center">
+              <span class="text-sm text-gray-400">Network:</span>
+              <span class="font-semibold text-blue-400">Polygon (MATIC)</span>
+            </div>
+          </div>
+
+          <!-- Wallet Address (for manual copy) -->
+          <div class="bg-blue-900/20 border border-blue-500/30 rounded-lg p-3">
+            <p class="text-xs text-blue-300 mb-1">Or send manually to:</p>
+            <div class="flex items-center gap-2">
+              <code class="text-xs font-mono text-blue-400 break-all flex-1">{{ paymentSession.receivingWallet }}</code>
+              <button
+                @click="copyToClipboard(paymentSession.receivingWallet)"
+                class="text-blue-400 hover:text-blue-300 transition-colors"
+                title="Copy address"
+              >
+                📋
+              </button>
+            </div>
+          </div>
+
+          <!-- Status -->
+          <div class="text-center">
+            <div v-if="checkingPayment" class="flex items-center justify-center gap-2 text-yellow-400">
+              <div class="animate-spin">⏳</div>
+              <span class="text-sm font-semibold">Waiting for payment...</span>
+            </div>
+            <p class="text-xs text-gray-500 mt-2">
+              Your bet will be automatically confirmed once payment is detected
+            </p>
+          </div>
+
+          <!-- Instructions -->
+          <div class="bg-green-900/20 border border-green-500/30 rounded-lg p-3">
+            <p class="text-xs text-green-300">
+              <strong>📱 How to pay:</strong>
+            </p>
+            <ol class="text-xs text-gray-300 mt-2 space-y-1 ml-4 list-decimal">
+              <li>Open your crypto wallet (MetaMask, Trust Wallet, etc.)</li>
+              <li>Scan the QR code or copy the address above</li>
+              <li>Send <strong>{{ paymentSession.totalAmount }} MATIC</strong> on Polygon network</li>
+              <li>Wait for confirmation (usually 10-30 seconds)</li>
+            </ol>
+          </div>
+
+          <!-- Cancel Button -->
+          <button
+            @click="resetPaymentSession"
+            class="w-full py-2 text-sm text-gray-400 hover:text-white transition-colors"
+          >
+            ✕ Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+
     <!-- Rules Modal -->
     <div 
       v-if="showRulesModal"
@@ -368,7 +581,7 @@
               </li>
               <li class="flex gap-3">
                 <span class="flex-shrink-0 w-6 h-6 rounded-full bg-purple-600 flex items-center justify-center text-xs font-bold">2</span>
-                <span>Choose any 6 numbers (1-69). <strong>All count equally!</strong></span>
+                <span>Choose any 6 numbers (1-60). <strong>All count equally!</strong></span>
               </li>
               <li class="flex gap-3">
                 <span class="flex-shrink-0 w-6 h-6 rounded-full bg-purple-600 flex items-center justify-center text-xs font-bold">3</span>
@@ -432,7 +645,7 @@
               <li>Each transaction can only be used once</li>
               <li>Your bet must be placed before the draw date</li>
               <li>Minimum bet: {{ betAmount }} MATIC</li>
-              <li>You must choose exactly 6 numbers (1-69)</li>
+              <li>You must choose exactly 6 numbers (1-60)</li>
               <li><strong>All 6 numbers count equally</strong> - no number is more important than another</li>
               <li>Only the <strong>total number of matches</strong> matters, not which specific numbers or order</li>
               <li>All transactions are validated on Polygon blockchain</li>
@@ -470,8 +683,9 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 import axios from 'axios';
+import QRCode from 'qrcode';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
 
@@ -487,18 +701,153 @@ const successMessage = ref('');
 const errorMessage = ref('');
 const showRulesModal = ref(false);
 
+// Multi-bet state
+const betMode = ref('single'); // 'single' or 'multiple'
+const multiBetCount = ref(10);
+const generatedBets = ref([]);
+const multiTransactionId = ref('');
+const multiNickname = ref('');
+
 // Config from backend
 const receivingWallet = ref('0x49Ebd6bf6a1eF004dab7586CE0680eab9e1aFbCb');
 const betAmount = ref('0.1');
 
+// Payment session state
+const paymentSession = ref(null);
+const qrCodeDataUrl = ref('');
+const checkingPayment = ref(false);
+const paymentCheckInterval = ref(null);
+const showingQRCode = ref(false);
+
 // Computed
 const isValidBet = computed(() => {
   if (selectedNumbers.value.length !== 6) return false;
-  if (!transactionId.value.trim()) return false;
   return true;
 });
 
+const isValidMultiBet = computed(() => {
+  if (generatedBets.value.length === 0) return false;
+  return true;
+});
+
+const totalMultiBetAmount = computed(() => {
+  return (parseFloat(betAmount.value) * generatedBets.value.length).toFixed(2);
+});
+
 // Methods
+async function initPaymentSession(betCount = 1) {
+  try {
+    const response = await axios.post(`${API_URL}/bets/init-session`, {
+      betCount
+    });
+    
+    paymentSession.value = response.data.data;
+    
+    // Generate QR code
+    const paymentUri = `ethereum:${paymentSession.value.receivingWallet}@137?value=${parseFloat(paymentSession.value.totalAmount) * 1e18}`;
+    qrCodeDataUrl.value = await QRCode.toDataURL(paymentUri, {
+      width: 300,
+      margin: 2,
+      color: {
+        dark: '#9333ea', // purple-600
+        light: '#ffffff'
+      }
+    });
+    
+    showingQRCode.value = true;
+    
+    // Start checking for payment
+    startPaymentCheck();
+    
+    return paymentSession.value;
+  } catch (error) {
+    console.error('Error initializing payment session:', error);
+    errorMessage.value = 'Failed to initialize payment session';
+    throw error;
+  }
+}
+
+function startPaymentCheck() {
+  checkingPayment.value = true;
+  
+  // Check immediately
+  checkPayment();
+  
+  // Then check every 5 seconds
+  paymentCheckInterval.value = setInterval(checkPayment, 5000);
+}
+
+function stopPaymentCheck() {
+  checkingPayment.value = false;
+  if (paymentCheckInterval.value) {
+    clearInterval(paymentCheckInterval.value);
+    paymentCheckInterval.value = null;
+  }
+}
+
+async function checkPayment() {
+  if (!paymentSession.value) return;
+  
+  try {
+    const response = await axios.get(`${API_URL}/bets/check-payment/${paymentSession.value.sessionId}`);
+    
+    if (response.data.data.paymentFound) {
+      stopPaymentCheck();
+      
+      // Payment confirmed! Now submit the bet
+      await completeBetSession();
+    }
+  } catch (error) {
+    console.error('Error checking payment:', error);
+  }
+}
+
+async function completeBetSession() {
+  try {
+    isSubmitting.value = true;
+    
+    let numbers;
+    let nickname_value;
+    
+    if (betMode.value === 'single') {
+      numbers = selectedNumbers.value;
+      nickname_value = nickname.value;
+    } else {
+      numbers = generatedBets.value.map(bet => bet.numbers);
+      nickname_value = multiNickname.value;
+    }
+    
+    const response = await axios.post(`${API_URL}/bets/complete-session`, {
+      sessionId: paymentSession.value.sessionId,
+      numbers,
+      nickname: nickname_value.trim() || null
+    });
+    
+    successMessage.value = response.data.message;
+    
+    // Reset form
+    resetPaymentSession();
+    resetForm();
+    
+    // Reload data
+    await loadCurrentRound();
+    await loadRecentBets();
+    
+  } catch (error) {
+    console.error('Error completing bet session:', error);
+    errorMessage.value = error.response?.data?.error || 'Failed to complete bet. Please contact support.';
+  } finally {
+    isSubmitting.value = false;
+  }
+}
+
+function resetPaymentSession() {
+  paymentSession.value = null;
+  qrCodeDataUrl.value = '';
+  showingQRCode.value = false;
+  stopPaymentCheck();
+}
+
 function toggleNumber(num) {
   const index = selectedNumbers.value.indexOf(num);
   
@@ -514,9 +863,9 @@ function toggleNumber(num) {
 function quickPick() {
   const numbers = [];
   
-  // Pick 6 random numbers (1-69)
+  // Pick 6 random numbers (1-60)
   while (numbers.length < 6) {
-    const num = Math.floor(Math.random() * 69) + 1;
+    const num = Math.floor(Math.random() * 60) + 1;
     if (!numbers.includes(num)) {
       numbers.push(num);
     }
@@ -533,28 +882,12 @@ async function placeBet() {
   errorMessage.value = '';
   
   try {
-    // Sort numbers and send last one as powerball
-    const sortedNumbers = selectedNumbers.value.slice().sort((a, b) => a - b);
-    const numbers = sortedNumbers.slice(0, 5);
-    const powerball = sortedNumbers[5];
-    
-    const response = await axios.post(`${API_URL}/bets`, {
-      numbers,
-      powerball,
-      transactionId: transactionId.value.trim(),
-      nickname: nickname.value.trim() || null
-    });
-    
-    successMessage.value = response.data.message;
-    
-    // Reload data
-    await loadCurrentRound();
-    await loadRecentBets();
+    // Initialize payment session for single bet
+    await initPaymentSession(1);
     
   } catch (error) {
     console.error('Error placing bet:', error);
     errorMessage.value = error.response?.data?.error || 'Failed to place bet. Please try again.';
-  } finally {
     isSubmitting.value = false;
   }
 }
@@ -563,8 +896,60 @@ function resetForm() {
   selectedNumbers.value = [];
   transactionId.value = '';
   nickname.value = '';
+  generatedBets.value = [];
+  multiTransactionId.value = '';
+  multiNickname.value = '';
   successMessage.value = '';
   errorMessage.value = '';
+  resetPaymentSession();
+}
+
+function generateRandomNumbers() {
+  const numbers = [];
+  while (numbers.length < 6) {
+    const num = Math.floor(Math.random() * 60) + 1;
+    if (!numbers.includes(num)) {
+      numbers.push(num);
+    }
+  }
+  return numbers.sort((a, b) => a - b);
+}
+
+function generateMultipleBets() {
+  const count = parseInt(multiBetCount.value);
+  if (count < 1 || count > 100) {
+    errorMessage.value = 'Please enter a number between 1 and 100';
+    return;
+  }
+  
+  generatedBets.value = [];
+  for (let i = 0; i < count; i++) {
+    generatedBets.value.push({
+      id: i + 1,
+      numbers: generateRandomNumbers()
+    });
+  }
+  
+  successMessage.value = '';
+  errorMessage.value = '';
+}
+
+async function placeMultipleBets() {
+  if (!isValidMultiBet.value) return;
+  
+  isSubmitting.value = true;
+  successMessage.value = '';
+  errorMessage.value = '';
+  
+  try {
+    // Initialize payment session for multiple bets
+    await initPaymentSession(generatedBets.value.length);
+    
+  } catch (error) {
+    console.error('Error placing multiple bets:', error);
+    errorMessage.value = error.response?.data?.error || 'Failed to place bets. Please try again.';
+    isSubmitting.value = false;
+  }
 }
 
 async function loadCurrentRound() {
@@ -619,6 +1004,18 @@ function formatTime(timestamp) {
   return `${Math.floor(diff / 86400)}d ago`;
 }
 
+function copyToClipboard(text) {
+  navigator.clipboard.writeText(text).then(() => {
+    // Show brief success feedback
+    const originalText = text;
+    setTimeout(() => {
+      console.log('Copied:', originalText);
+    }, 100);
+  }).catch(err => {
+    console.error('Failed to copy:', err);
+  });
+}
+
 // Load data on mount
 onMounted(async () => {
   await loadConfig(); // Load config first
@@ -627,6 +1024,11 @@ onMounted(async () => {
   
   // Refresh recent bets every 30 seconds
   setInterval(loadRecentBets, 30000);
+});
+
+// Cleanup on unmount
+onUnmounted(() => {
+  stopPaymentCheck();
 });
 </script>
 

@@ -29,7 +29,6 @@ class PowerballResultModel {
     const result = {
       drawDate: resultData.drawDate,
       numbers: resultData.numbers,
-      powerball: resultData.powerball,
       multiplier: resultData.multiplier || null,
       jackpot: resultData.jackpot || null,
       processed: resultData.processed || false
