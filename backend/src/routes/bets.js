@@ -122,6 +122,161 @@ router.post('/', async (req, res) => {
 });
 
 /**
+ * POST /api/bets/multiple
+ * Place multiple bets at once (for professional players)
+ */
+router.post('/multiple', async (req, res) => {
+  try {
+    const { bets, transactionId, nickname } = req.body;
+    
+    // Validation
+    if (!bets || !Array.isArray(bets) || bets.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'Must provide at least one bet'
+      });
+    }
+    
+    if (bets.length > 100) {
+      return res.status(400).json({
+        success: false,
+        error: 'Maximum 100 bets per transaction'
+      });
+    }
+    
+    // Validate each bet
+    for (let i = 0; i < bets.length; i++) {
+      const bet = bets[i];
+      
+      if (!bet.numbers || !Array.isArray(bet.numbers) || bet.numbers.length !== 6) {
+        return res.status(400).json({
+          success: false,
+          error: `Bet #${i + 1}: Must provide exactly 6 numbers`
+        });
+      }
+      
+      for (const num of bet.numbers) {
+        if (num < 1 || num > 60) {
+          return res.status(400).json({
+            success: false,
+            error: `Bet #${i + 1}: Numbers must be between 1 and 60`
+          });
+        }
+      }
+      
+      if (new Set(bet.numbers).size !== 6) {
+        return res.status(400).json({
+          success: false,
+          error: `Bet #${i + 1}: Numbers must be unique`
+        });
+      }
+    }
+    
+    if (!transactionId) {
+      return res.status(400).json({
+        success: false,
+        error: 'Transaction ID is required'
+      });
+    }
+    
+    // Check if transaction already used
+    const existingBet = await Bet.findOne({ transactionId });
+    if (existingBet) {
+      return res.status(400).json({
+        success: false,
+        error: 'This transaction ID has already been used'
+      });
+    }
+    
+    // Get current round
+    let currentRound = await Round.findOne({ isFinalized: false });
+    
+    // Create first round if none exists
+    if (!currentRound) {
+      currentRound = await Round.create({
+        roundId: 1,
+        startTime: new Date(),
+        drawDate: getNextPowerballDrawDate()
+      });
+    }
+    
+    // Validate transaction on blockchain
+    let txDetails;
+    let validationError = null;
+    
+    try {
+      txDetails = await validateTransaction(transactionId);
+      
+      // Check if transaction was made before draw date
+      if (txDetails.timestamp > currentRound.drawDate) {
+        throw new Error('Transaction must be made before the draw date');
+      }
+      
+      // Check if transaction value matches expected amount
+      const expectedAmount = parseFloat(process.env.BET_AMOUNT || '0.1') * bets.length;
+      const actualAmount = parseFloat(txDetails.value);
+      const tolerance = 0.01; // 0.01 MATIC tolerance
+      
+      if (Math.abs(actualAmount - expectedAmount) > tolerance) {
+        throw new Error(`Transaction amount (${actualAmount} MATIC) doesn't match expected amount (${expectedAmount} MATIC for ${bets.length} bets)`);
+      }
+    } catch (error) {
+      validationError = error.message;
+      console.error('Transaction validation failed:', error.message);
+    }
+    
+    // Create all bets
+    const createdBets = [];
+    
+    for (let i = 0; i < bets.length; i++) {
+      const betData = bets[i];
+      
+      // For multiple bets, we append the index to the transaction ID to make it unique
+      const uniqueTxId = `${transactionId}-${i}`;
+      
+      const bet = await Bet.create({
+        numbers: betData.numbers.sort((a, b) => a - b),
+        transactionId: uniqueTxId,
+        nickname: nickname || null,
+        roundId: currentRound.roundId,
+        fromAddress: txDetails?.fromAddress || 'pending',
+        transactionValue: txDetails ? (parseFloat(txDetails.value) / bets.length).toString() : '0',
+        transactionTimestamp: txDetails?.timestamp || new Date(),
+        isValidated: txDetails ? true : false,
+        validationError: i === 0 ? validationError : null // Only store error on first bet
+      });
+      
+      createdBets.push(bet);
+    }
+    
+    // Update round bet count
+    currentRound.totalBets += bets.length;
+    await currentRound.save();
+    
+    res.json({
+      success: true,
+      message: txDetails 
+        ? `${bets.length} bets placed successfully` 
+        : `${bets.length} bets registered, pending validation`,
+      data: {
+        betsCount: bets.length,
+        roundId: currentRound.roundId,
+        drawDate: currentRound.drawDate,
+        isValidated: txDetails ? true : false,
+        validationError
+      }
+    });
+    
+  } catch (error) {
+    console.error('Error placing multiple bets:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+/**
  * GET /api/bets/recent
  * Get recent bets
  */

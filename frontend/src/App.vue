@@ -65,8 +65,36 @@
             </div>
           </div>
 
-          <!-- Number Picker -->
+          <!-- Bet Mode Tabs -->
           <div class="card">
+            <div class="flex gap-2 mb-4">
+              <button
+                @click="betMode = 'single'"
+                :class="[
+                  'flex-1 py-3 px-4 rounded-lg font-semibold transition-all',
+                  betMode === 'single'
+                    ? 'bg-purple-600 text-white'
+                    : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                ]"
+              >
+                🎯 Single Bet
+              </button>
+              <button
+                @click="betMode = 'multiple'"
+                :class="[
+                  'flex-1 py-3 px-4 rounded-lg font-semibold transition-all',
+                  betMode === 'multiple'
+                    ? 'bg-purple-600 text-white'
+                    : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                ]"
+              >
+                🎰 Multiple Bets
+              </button>
+            </div>
+          </div>
+
+          <!-- Single Bet Mode -->
+          <div v-if="betMode === 'single'" class="card">
             <h3 class="text-lg sm:text-xl font-bold mb-3 sm:mb-4">Choose Your Numbers</h3>
             
             <!-- Instructions -->
@@ -171,6 +199,122 @@
               <span v-else-if="!isValidBet">Complete All Fields</span>
               <span v-else>🎰 Place Bet</span>
             </button>
+          </div>
+
+          <!-- Multiple Bets Mode -->
+          <div v-if="betMode === 'multiple'" class="card">
+            <h3 class="text-lg sm:text-xl font-bold mb-3 sm:mb-4">Generate Multiple Bets</h3>
+            
+            <!-- Instructions -->
+            <div class="bg-blue-900/20 border border-blue-500/30 rounded-lg p-3 sm:p-4 mb-3 sm:mb-4">
+              <p class="text-xs sm:text-sm text-blue-300">
+                <strong>⚡ For Professional Players:</strong> Generate multiple random bets at once! 
+                <span class="text-gray-300">Perfect for those who want to play many combinations quickly.</span>
+              </p>
+            </div>
+
+            <!-- Bet Count Input -->
+            <div class="mb-4">
+              <label class="block text-xs sm:text-sm font-semibold text-gray-300 mb-2">
+                How many bets do you want to make? <span class="text-red-400">*</span>
+              </label>
+              <div class="flex gap-2">
+                <input
+                  v-model.number="multiBetCount"
+                  type="number"
+                  min="1"
+                  max="100"
+                  placeholder="Enter number (1-100)"
+                  class="input text-sm flex-1"
+                />
+                <button
+                  @click="generateMultipleBets"
+                  class="btn bg-purple-600 hover:bg-purple-700 text-white px-6"
+                >
+                  🎲 Generate
+                </button>
+              </div>
+              <p class="text-[10px] sm:text-xs text-gray-400 mt-1">
+                Each bet costs {{ betAmount }} MATIC
+              </p>
+            </div>
+
+            <!-- Generated Bets Preview -->
+            <div v-if="generatedBets.length > 0" class="mb-4">
+              <div class="bg-green-900/20 border border-green-500/30 rounded-lg p-3 sm:p-4 mb-3">
+                <p class="text-sm font-semibold text-green-400 mb-1">
+                  ✅ {{ generatedBets.length }} bets generated!
+                </p>
+                <p class="text-xs text-gray-300">
+                  Total amount: <span class="font-bold text-green-400">{{ totalMultiBetAmount }} MATIC</span>
+                </p>
+              </div>
+
+              <!-- Preview of all bets -->
+              <div class="bg-gray-900/50 rounded-lg p-3 sm:p-4 mb-4 max-h-[400px] overflow-y-auto">
+                <p class="text-xs text-gray-400 mb-2">All Generated Bets:</p>
+                <div class="space-y-2">
+                  <div
+                    v-for="bet in generatedBets"
+                    :key="bet.id"
+                    class="flex items-center gap-2 bg-gray-800/50 rounded p-2"
+                  >
+                    <span class="text-xs text-gray-500 font-mono w-8">#{{ bet.id }}</span>
+                    <div class="flex gap-1.5 flex-wrap">
+                      <div
+                        v-for="num in bet.numbers"
+                        :key="num"
+                        class="w-7 h-7 rounded-full bg-purple-600/30 border border-purple-500/50 flex items-center justify-center text-xs font-bold"
+                      >
+                        {{ num }}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Transaction ID -->
+              <div class="mb-3 sm:mb-4">
+                <label class="block text-xs sm:text-sm font-semibold text-gray-300 mb-1.5 sm:mb-2">
+                  Transaction ID <span class="text-red-400">*</span>
+                </label>
+                <input
+                  v-model="multiTransactionId"
+                  type="text"
+                  placeholder="Paste your Polygon transaction hash (0x...)"
+                  class="input text-sm"
+                />
+                <p class="text-[10px] sm:text-xs text-gray-400 mt-1 break-all">
+                  Send <span class="font-bold text-green-400">{{ totalMultiBetAmount }} MATIC</span> to: 
+                  <span class="font-mono text-purple-400">{{ receivingWallet }}</span>
+                </p>
+              </div>
+
+              <!-- Nickname -->
+              <div class="mb-4 sm:mb-6">
+                <label class="block text-xs sm:text-sm font-semibold text-gray-300 mb-1.5 sm:mb-2">
+                  Nickname <span class="text-gray-500">(Optional)</span>
+                </label>
+                <input
+                  v-model="multiNickname"
+                  type="text"
+                  maxlength="50"
+                  placeholder="Enter a nickname"
+                  class="input text-sm"
+                />
+              </div>
+
+              <!-- Submit Button -->
+              <button
+                @click="placeMultipleBets"
+                :disabled="!isValidMultiBet || isSubmitting"
+                class="btn btn-primary w-full text-base sm:text-lg"
+              >
+                <span v-if="isSubmitting">⏳ Submitting {{ generatedBets.length }} bets...</span>
+                <span v-else-if="!isValidMultiBet">Complete All Fields</span>
+                <span v-else>🎰 Place {{ generatedBets.length }} Bets</span>
+              </button>
+            </div>
           </div>
 
           <!-- Success/Error Messages -->
@@ -487,6 +631,13 @@ const successMessage = ref('');
 const errorMessage = ref('');
 const showRulesModal = ref(false);
 
+// Multi-bet state
+const betMode = ref('single'); // 'single' or 'multiple'
+const multiBetCount = ref(10);
+const generatedBets = ref([]);
+const multiTransactionId = ref('');
+const multiNickname = ref('');
+
 // Config from backend
 const receivingWallet = ref('0x49Ebd6bf6a1eF004dab7586CE0680eab9e1aFbCb');
 const betAmount = ref('0.1');
@@ -496,6 +647,16 @@ const isValidBet = computed(() => {
   if (selectedNumbers.value.length !== 6) return false;
   if (!transactionId.value.trim()) return false;
   return true;
+});
+
+const isValidMultiBet = computed(() => {
+  if (generatedBets.value.length === 0) return false;
+  if (!multiTransactionId.value.trim()) return false;
+  return true;
+});
+
+const totalMultiBetAmount = computed(() => {
+  return (parseFloat(betAmount.value) * generatedBets.value.length).toFixed(2);
 });
 
 // Methods
@@ -562,6 +723,69 @@ function resetForm() {
   nickname.value = '';
   successMessage.value = '';
   errorMessage.value = '';
+}
+
+function generateRandomNumbers() {
+  const numbers = [];
+  while (numbers.length < 6) {
+    const num = Math.floor(Math.random() * 60) + 1;
+    if (!numbers.includes(num)) {
+      numbers.push(num);
+    }
+  }
+  return numbers.sort((a, b) => a - b);
+}
+
+function generateMultipleBets() {
+  const count = parseInt(multiBetCount.value);
+  if (count < 1 || count > 100) {
+    errorMessage.value = 'Please enter a number between 1 and 100';
+    return;
+  }
+  
+  generatedBets.value = [];
+  for (let i = 0; i < count; i++) {
+    generatedBets.value.push({
+      id: i + 1,
+      numbers: generateRandomNumbers()
+    });
+  }
+  
+  successMessage.value = '';
+  errorMessage.value = '';
+}
+
+async function placeMultipleBets() {
+  if (!isValidMultiBet.value) return;
+  
+  isSubmitting.value = true;
+  successMessage.value = '';
+  errorMessage.value = '';
+  
+  try {
+    const response = await axios.post(`${API_URL}/bets/multiple`, {
+      bets: generatedBets.value.map(bet => ({ numbers: bet.numbers })),
+      transactionId: multiTransactionId.value.trim(),
+      nickname: multiNickname.value.trim() || null
+    });
+    
+    successMessage.value = response.data.message;
+    
+    // Reset form
+    generatedBets.value = [];
+    multiTransactionId.value = '';
+    multiNickname.value = '';
+    
+    // Reload data
+    await loadCurrentRound();
+    await loadRecentBets();
+    
+  } catch (error) {
+    console.error('Error placing multiple bets:', error);
+    errorMessage.value = error.response?.data?.error || 'Failed to place bets. Please try again.';
+  } finally {
+    isSubmitting.value = false;
+  }
 }
 
 async function loadCurrentRound() {
