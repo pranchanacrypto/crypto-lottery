@@ -83,6 +83,33 @@ app.get('/api/config', (req, res) => {
   });
 });
 
+// Wallet balance endpoint - returns current balance
+app.get('/api/wallet/balance', async (req, res) => {
+  try {
+    const { getBalance } = await import('./services/blockchainService.js');
+    const walletAddress = process.env.RECEIVING_WALLET || '0x49Ebd6bf6a1eF004dab7586CE0680eab9e1aFbCb';
+    
+    const balance = await getBalance(walletAddress);
+    
+    res.json({
+      success: true,
+      data: {
+        address: walletAddress,
+        balance: balance,
+        balanceFormatted: `${parseFloat(balance).toFixed(4)} MATIC`,
+        network: 'Polygon',
+        explorerUrl: `https://polygonscan.com/address/${walletAddress}`
+      }
+    });
+  } catch (error) {
+    console.error('Error getting wallet balance:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
 // Cron job to check Powerball results
 // Runs every day at 11 PM
 cron.schedule('0 23 * * *', async () => {
