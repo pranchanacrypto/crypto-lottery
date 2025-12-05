@@ -227,6 +227,87 @@ export async function getBalance(address) {
   }
 }
 
+/**
+ * Get recent transactions to receiving wallet
+ * @param {number} limit - Number of recent transactions to fetch
+ * @returns {Promise<Array>} List of recent transactions
+ */
+export async function getRecentTransactions(limit = 10) {
+  try {
+    if (!POLYGONSCAN_API_KEY) {
+      throw new Error('PolygonScan API key required for transaction monitoring');
+    }
+    
+    // Get transactions using PolygonScan API
+    const url = `https://api.polygonscan.com/api?module=account&action=txlist&address=${RECEIVING_WALLET}&startblock=0&endblock=99999999&page=1&offset=${limit}&sort=desc&apikey=${POLYGONSCAN_API_KEY}`;
+    
+    const response = await axios.get(url);
+    
+    if (response.data.status !== '1') {
+      throw new Error(response.data.message || 'Failed to fetch transactions');
+    }
+    
+    const transactions = response.data.result;
+    
+    // Filter and format transactions
+    return transactions
+      .filter(tx => 
+        tx.to.toLowerCase() === RECEIVING_WALLET.toLowerCase() &&
+        tx.isError === '0' && // Only successful transactions
+        parseFloat(ethers.formatEther(tx.value)) >= parseFloat(BET_AMOUNT)
+      )
+      .map(tx => ({
+        hash: tx.hash,
+        from: tx.from,
+        to: tx.to,
+        value: ethers.formatEther(tx.value),
+        timestamp: new Date(parseInt(tx.timeStamp) * 1000),
+        blockNumber: parseInt(tx.blockNumber),
+        confirmations: parseInt(tx.confirmations)
+      }));
+    
+  } catch (error) {
+    console.error('Error getting recent transactions:', error.message);
+    throw error;
+  }
+}
+
+/**
+ * Monitor for a specific payment amount from any address
+ * Useful for detecting pending payments
+ * @param {string} expectedAmount - Expected amount in MATIC
+ * @param {Date} since - Only check transactions after this time
+ * @returns {Promise<Object|null>} Transaction if found, null otherwise
+ */
+export async function findPendingPayment(expectedAmount, since = null) {
+  try {
+    const recentTxs = await getRecentTransactions(20);
+    
+    const expectedAmountFloat = parseFloat(expectedAmount);
+    const tolerance = 0.001; // 0.001 MATIC tolerance
+    
+    for (const tx of recentTxs) {
+      const txAmount = parseFloat(tx.value);
+      
+      // Check if amount matches (within tolerance)
+      if (Math.abs(txAmount - expectedAmountFloat) <= tolerance) {
+        // Check if transaction is recent enough
+        if (since && tx.timestamp < since) {
+          continue;
+        }
+        
+        return tx;
+      }
+    }
+    
+    return null;
+    
+  } catch (error) {
+    console.error('Error finding pending payment:', error.message);
+    throw error;
+  }
+}
+
 // Initialize on module load
 initProvider();
 

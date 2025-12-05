@@ -1,10 +1,13 @@
 import express from 'express';
 import Bet from '../models/Bet.js';
 import Round from '../models/Round.js';
-import { validateTransaction } from '../services/blockchainService.js';
+import { validateTransaction, findPendingPayment } from '../services/blockchainService.js';
 import { convertMaticToUsd, getMaticToUsdRate, formatUsd } from '../services/currencyService.js';
 
 const router = express.Router();
+
+// Store pending bet sessions in memory (consider using Redis in production)
+const pendingBetSessions = new Map();
 
 /**
  * POST /api/bets
@@ -476,6 +479,264 @@ router.get('/winners/:roundId', async (req, res) => {
     });
   } catch (error) {
     console.error('Error getting winners:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+/**
+ * POST /api/bets/init-session
+ * Initialize a bet session and return payment details
+ */
+router.post('/init-session', async (req, res) => {
+  try {
+    const { betCount = 1 } = req.body;
+    
+    if (betCount < 1 || betCount > 100) {
+      return res.status(400).json({
+        success: false,
+        error: 'Bet count must be between 1 and 100'
+      });
+    }
+    
+    // Generate unique session ID
+    const sessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    
+    // Calculate total amount
+    const betAmount = parseFloat(process.env.BET_AMOUNT || '0.1');
+    const totalAmount = (betAmount * betCount).toFixed(6);
+    
+    // Store session info
+    pendingBetSessions.set(sessionId, {
+      betCount,
+      totalAmount,
+      createdAt: new Date(),
+      status: 'awaiting_payment'
+    });
+    
+    // Clean up old sessions (older than 1 hour)
+    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+    for (const [key, value] of pendingBetSessions.entries()) {
+      if (value.createdAt < oneHourAgo) {
+        pendingBetSessions.delete(key);
+      }
+    }
+    
+    res.json({
+      success: true,
+      data: {
+        sessionId,
+        betCount,
+        betAmount,
+        totalAmount,
+        receivingWallet: process.env.RECEIVING_WALLET,
+        // EIP-681 format for Ethereum/Polygon payment URI
+        paymentUri: `ethereum:${process.env.RECEIVING_WALLET}@137?value=${parseFloat(totalAmount) * 1e18}`
+      }
+    });
+    
+  } catch (error) {
+    console.error('Error initializing bet session:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+/**
+ * GET /api/bets/check-payment/:sessionId
+ * Check if payment has been received for a session
+ */
+router.get('/check-payment/:sessionId', async (req, res) => {
+  try {
+    const { sessionId } = req.params;
+    
+    const session = pendingBetSessions.get(sessionId);
+    
+    if (!session) {
+      return res.status(404).json({
+        success: false,
+        error: 'Session not found or expired'
+      });
+    }
+    
+    // Check if payment already found
+    if (session.transactionId) {
+      return res.json({
+        success: true,
+        data: {
+          paymentFound: true,
+          transactionId: session.transactionId,
+          fromAddress: session.fromAddress
+        }
+      });
+    }
+    
+    // Look for pending payment matching the amount
+    const payment = await findPendingPayment(session.totalAmount, session.createdAt);
+    
+    if (payment) {
+      // Store transaction info in session
+      session.transactionId = payment.hash;
+      session.fromAddress = payment.from;
+      session.status = 'payment_received';
+      pendingBetSessions.set(sessionId, session);
+      
+      return res.json({
+        success: true,
+        data: {
+          paymentFound: true,
+          transactionId: payment.hash,
+          fromAddress: payment.from,
+          amount: payment.value,
+          timestamp: payment.timestamp
+        }
+      });
+    }
+    
+    // No payment found yet
+    res.json({
+      success: true,
+      data: {
+        paymentFound: false,
+        message: 'Awaiting payment...'
+      }
+    });
+    
+  } catch (error) {
+    console.error('Error checking payment:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+/**
+ * POST /api/bets/complete-session
+ * Complete a bet session after payment is confirmed
+ */
+router.post('/complete-session', async (req, res) => {
+  try {
+    const { sessionId, numbers, nickname } = req.body;
+    
+    const session = pendingBetSessions.get(sessionId);
+    
+    if (!session) {
+      return res.status(404).json({
+        success: false,
+        error: 'Session not found or expired'
+      });
+    }
+    
+    if (!session.transactionId) {
+      return res.status(400).json({
+        success: false,
+        error: 'Payment not yet received'
+      });
+    }
+    
+    // Validate numbers
+    if (session.betCount === 1) {
+      // Single bet
+      if (!numbers || !Array.isArray(numbers) || numbers.length !== 6) {
+        return res.status(400).json({
+          success: false,
+          error: 'Must provide exactly 6 numbers'
+        });
+      }
+    } else {
+      // Multiple bets
+      if (!numbers || !Array.isArray(numbers) || numbers.length !== session.betCount) {
+        return res.status(400).json({
+          success: false,
+          error: `Must provide ${session.betCount} bets`
+        });
+      }
+    }
+    
+    // Get current round
+    let currentRound = await Round.findOne({ isFinalized: false });
+    
+    if (!currentRound) {
+      currentRound = await Round.create({
+        roundId: 1,
+        startTime: new Date(),
+        drawDate: getNextPowerballDrawDate()
+      });
+    }
+    
+    // Validate transaction one more time
+    let txDetails;
+    try {
+      txDetails = await validateTransaction(session.transactionId);
+    } catch (error) {
+      return res.status(400).json({
+        success: false,
+        error: `Transaction validation failed: ${error.message}`
+      });
+    }
+    
+    // Create bets
+    const createdBets = [];
+    
+    if (session.betCount === 1) {
+      // Single bet
+      const bet = await Bet.create({
+        numbers: numbers.sort((a, b) => a - b),
+        transactionId: session.transactionId,
+        nickname: nickname || null,
+        roundId: currentRound.roundId,
+        fromAddress: txDetails.fromAddress,
+        transactionValue: txDetails.value,
+        transactionTimestamp: txDetails.timestamp,
+        isValidated: true,
+        validationError: null
+      });
+      createdBets.push(bet);
+    } else {
+      // Multiple bets
+      for (let i = 0; i < numbers.length; i++) {
+        const betNumbers = numbers[i];
+        const uniqueTxId = `${session.transactionId}-${i}`;
+        
+        const bet = await Bet.create({
+          numbers: betNumbers.sort((a, b) => a - b),
+          transactionId: uniqueTxId,
+          nickname: nickname || null,
+          roundId: currentRound.roundId,
+          fromAddress: txDetails.fromAddress,
+          transactionValue: (parseFloat(txDetails.value) / numbers.length).toString(),
+          transactionTimestamp: txDetails.timestamp,
+          isValidated: true,
+          validationError: null
+        });
+        createdBets.push(bet);
+      }
+    }
+    
+    // Update round
+    currentRound.totalBets += createdBets.length;
+    await currentRound.save();
+    
+    // Clean up session
+    pendingBetSessions.delete(sessionId);
+    
+    res.json({
+      success: true,
+      message: `${createdBets.length} bet(s) placed successfully!`,
+      data: {
+        betsCount: createdBets.length,
+        roundId: currentRound.roundId,
+        drawDate: currentRound.drawDate
+      }
+    });
+    
+  } catch (error) {
+    console.error('Error completing session:', error);
     res.status(500).json({
       success: false,
       error: error.message

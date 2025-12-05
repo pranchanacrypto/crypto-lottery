@@ -159,22 +159,6 @@
               </div>
             </div>
 
-            <!-- Transaction ID Input -->
-            <div class="mb-3 sm:mb-4">
-              <label class="block text-xs sm:text-sm font-semibold text-gray-300 mb-1.5 sm:mb-2">
-                Transaction ID <span class="text-red-400">*</span>
-              </label>
-              <input
-                v-model="transactionId"
-                type="text"
-                placeholder="Paste your Polygon transaction hash (0x...)"
-                class="input text-sm"
-              />
-              <p class="text-[10px] sm:text-xs text-gray-400 mt-1 break-all">
-                Send {{ betAmount }} MATIC to: <span class="font-mono text-purple-400">{{ receivingWallet }}</span>
-              </p>
-            </div>
-
             <!-- Nickname Input -->
             <div class="mb-4 sm:mb-6">
               <label class="block text-xs sm:text-sm font-semibold text-gray-300 mb-1.5 sm:mb-2">
@@ -192,12 +176,13 @@
             <!-- Submit Button -->
             <button
               @click="placeBet"
-              :disabled="!isValidBet || isSubmitting"
+              :disabled="!isValidBet || isSubmitting || showingQRCode"
               class="btn btn-primary w-full text-base sm:text-lg"
             >
-              <span v-if="isSubmitting">⏳ Submitting...</span>
-              <span v-else-if="!isValidBet">Complete All Fields</span>
-              <span v-else>🎰 Place Bet</span>
+              <span v-if="isSubmitting">⏳ Processing...</span>
+              <span v-else-if="showingQRCode">✓ Awaiting Payment...</span>
+              <span v-else-if="!isValidBet">Select 6 Numbers First</span>
+              <span v-else>💳 Continue to Payment</span>
             </button>
           </div>
 
@@ -273,23 +258,6 @@
                 </div>
               </div>
 
-              <!-- Transaction ID -->
-              <div class="mb-3 sm:mb-4">
-                <label class="block text-xs sm:text-sm font-semibold text-gray-300 mb-1.5 sm:mb-2">
-                  Transaction ID <span class="text-red-400">*</span>
-                </label>
-                <input
-                  v-model="multiTransactionId"
-                  type="text"
-                  placeholder="Paste your Polygon transaction hash (0x...)"
-                  class="input text-sm"
-                />
-                <p class="text-[10px] sm:text-xs text-gray-400 mt-1 break-all">
-                  Send <span class="font-bold text-green-400">{{ totalMultiBetAmount }} MATIC</span> to: 
-                  <span class="font-mono text-purple-400">{{ receivingWallet }}</span>
-                </p>
-              </div>
-
               <!-- Nickname -->
               <div class="mb-4 sm:mb-6">
                 <label class="block text-xs sm:text-sm font-semibold text-gray-300 mb-1.5 sm:mb-2">
@@ -304,15 +272,23 @@
                 />
               </div>
 
+              <!-- Total Amount Display -->
+              <div class="bg-green-900/30 border border-green-500/50 rounded-lg p-3 mb-4">
+                <p class="text-sm text-green-300 text-center">
+                  Total Amount: <span class="font-bold text-lg text-green-400">{{ totalMultiBetAmount }} MATIC</span>
+                </p>
+              </div>
+
               <!-- Submit Button -->
               <button
                 @click="placeMultipleBets"
-                :disabled="!isValidMultiBet || isSubmitting"
+                :disabled="!isValidMultiBet || isSubmitting || showingQRCode"
                 class="btn btn-primary w-full text-base sm:text-lg"
               >
-                <span v-if="isSubmitting">⏳ Submitting {{ generatedBets.length }} bets...</span>
-                <span v-else-if="!isValidMultiBet">Complete All Fields</span>
-                <span v-else>🎰 Place {{ generatedBets.length }} Bets</span>
+                <span v-if="isSubmitting">⏳ Processing...</span>
+                <span v-else-if="showingQRCode">✓ Awaiting Payment...</span>
+                <span v-else-if="!isValidMultiBet">Generate Bets First</span>
+                <span v-else>💳 Continue to Payment ({{ totalMultiBetAmount }} MATIC)</span>
               </button>
             </div>
           </div>
@@ -476,6 +452,99 @@
       </footer>
     </div>
 
+    <!-- QR Code Payment Modal -->
+    <div 
+      v-if="showingQRCode && paymentSession"
+      class="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+    >
+      <div 
+        @click.stop
+        class="bg-gradient-to-br from-gray-900 to-gray-800 border-2 border-purple-500/50 rounded-2xl max-w-md w-full shadow-2xl"
+      >
+        <!-- Modal Header -->
+        <div class="bg-gradient-to-r from-purple-900/90 to-pink-900/90 backdrop-blur-sm border-b border-purple-500/50 p-4 sm:p-6">
+          <div class="text-center">
+            <h2 class="text-xl sm:text-2xl font-bold text-purple-300 mb-2">💳 Complete Payment</h2>
+            <p class="text-sm text-gray-300">
+              Scan QR Code with your crypto wallet
+            </p>
+          </div>
+        </div>
+
+        <!-- Modal Content -->
+        <div class="p-6 space-y-4">
+          
+          <!-- QR Code -->
+          <div class="flex justify-center bg-white rounded-xl p-4">
+            <img :src="qrCodeDataUrl" alt="Payment QR Code" class="w-64 h-64" />
+          </div>
+
+          <!-- Payment Details -->
+          <div class="bg-gray-900/50 rounded-lg p-4 space-y-2">
+            <div class="flex justify-between items-center">
+              <span class="text-sm text-gray-400">Amount:</span>
+              <span class="text-lg font-bold text-green-400">{{ paymentSession.totalAmount }} MATIC</span>
+            </div>
+            <div class="flex justify-between items-center">
+              <span class="text-sm text-gray-400">Bets:</span>
+              <span class="font-semibold text-purple-400">{{ paymentSession.betCount }}</span>
+            </div>
+            <div class="flex justify-between items-center">
+              <span class="text-sm text-gray-400">Network:</span>
+              <span class="font-semibold text-blue-400">Polygon (MATIC)</span>
+            </div>
+          </div>
+
+          <!-- Wallet Address (for manual copy) -->
+          <div class="bg-blue-900/20 border border-blue-500/30 rounded-lg p-3">
+            <p class="text-xs text-blue-300 mb-1">Or send manually to:</p>
+            <div class="flex items-center gap-2">
+              <code class="text-xs font-mono text-blue-400 break-all flex-1">{{ paymentSession.receivingWallet }}</code>
+              <button
+                @click="copyToClipboard(paymentSession.receivingWallet)"
+                class="text-blue-400 hover:text-blue-300 transition-colors"
+                title="Copy address"
+              >
+                📋
+              </button>
+            </div>
+          </div>
+
+          <!-- Status -->
+          <div class="text-center">
+            <div v-if="checkingPayment" class="flex items-center justify-center gap-2 text-yellow-400">
+              <div class="animate-spin">⏳</div>
+              <span class="text-sm font-semibold">Waiting for payment...</span>
+            </div>
+            <p class="text-xs text-gray-500 mt-2">
+              Your bet will be automatically confirmed once payment is detected
+            </p>
+          </div>
+
+          <!-- Instructions -->
+          <div class="bg-green-900/20 border border-green-500/30 rounded-lg p-3">
+            <p class="text-xs text-green-300">
+              <strong>📱 How to pay:</strong>
+            </p>
+            <ol class="text-xs text-gray-300 mt-2 space-y-1 ml-4 list-decimal">
+              <li>Open your crypto wallet (MetaMask, Trust Wallet, etc.)</li>
+              <li>Scan the QR code or copy the address above</li>
+              <li>Send <strong>{{ paymentSession.totalAmount }} MATIC</strong> on Polygon network</li>
+              <li>Wait for confirmation (usually 10-30 seconds)</li>
+            </ol>
+          </div>
+
+          <!-- Cancel Button -->
+          <button
+            @click="resetPaymentSession"
+            class="w-full py-2 text-sm text-gray-400 hover:text-white transition-colors"
+          >
+            ✕ Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+
     <!-- Rules Modal -->
     <div 
       v-if="showRulesModal"
@@ -614,8 +683,9 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 import axios from 'axios';
+import QRCode from 'qrcode';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
 
@@ -642,16 +712,21 @@ const multiNickname = ref('');
 const receivingWallet = ref('0x49Ebd6bf6a1eF004dab7586CE0680eab9e1aFbCb');
 const betAmount = ref('0.1');
 
+// Payment session state
+const paymentSession = ref(null);
+const qrCodeDataUrl = ref('');
+const checkingPayment = ref(false);
+const paymentCheckInterval = ref(null);
+const showingQRCode = ref(false);
+
 // Computed
 const isValidBet = computed(() => {
   if (selectedNumbers.value.length !== 6) return false;
-  if (!transactionId.value.trim()) return false;
   return true;
 });
 
 const isValidMultiBet = computed(() => {
   if (generatedBets.value.length === 0) return false;
-  if (!multiTransactionId.value.trim()) return false;
   return true;
 });
 
@@ -660,6 +735,119 @@ const totalMultiBetAmount = computed(() => {
 });
 
 // Methods
+async function initPaymentSession(betCount = 1) {
+  try {
+    const response = await axios.post(`${API_URL}/bets/init-session`, {
+      betCount
+    });
+    
+    paymentSession.value = response.data.data;
+    
+    // Generate QR code
+    const paymentUri = `ethereum:${paymentSession.value.receivingWallet}@137?value=${parseFloat(paymentSession.value.totalAmount) * 1e18}`;
+    qrCodeDataUrl.value = await QRCode.toDataURL(paymentUri, {
+      width: 300,
+      margin: 2,
+      color: {
+        dark: '#9333ea', // purple-600
+        light: '#ffffff'
+      }
+    });
+    
+    showingQRCode.value = true;
+    
+    // Start checking for payment
+    startPaymentCheck();
+    
+    return paymentSession.value;
+  } catch (error) {
+    console.error('Error initializing payment session:', error);
+    errorMessage.value = 'Failed to initialize payment session';
+    throw error;
+  }
+}
+
+function startPaymentCheck() {
+  checkingPayment.value = true;
+  
+  // Check immediately
+  checkPayment();
+  
+  // Then check every 5 seconds
+  paymentCheckInterval.value = setInterval(checkPayment, 5000);
+}
+
+function stopPaymentCheck() {
+  checkingPayment.value = false;
+  if (paymentCheckInterval.value) {
+    clearInterval(paymentCheckInterval.value);
+    paymentCheckInterval.value = null;
+  }
+}
+
+async function checkPayment() {
+  if (!paymentSession.value) return;
+  
+  try {
+    const response = await axios.get(`${API_URL}/bets/check-payment/${paymentSession.value.sessionId}`);
+    
+    if (response.data.data.paymentFound) {
+      stopPaymentCheck();
+      
+      // Payment confirmed! Now submit the bet
+      await completeBetSession();
+    }
+  } catch (error) {
+    console.error('Error checking payment:', error);
+  }
+}
+
+async function completeBetSession() {
+  try {
+    isSubmitting.value = true;
+    
+    let numbers;
+    let nickname_value;
+    
+    if (betMode.value === 'single') {
+      numbers = selectedNumbers.value;
+      nickname_value = nickname.value;
+    } else {
+      numbers = generatedBets.value.map(bet => bet.numbers);
+      nickname_value = multiNickname.value;
+    }
+    
+    const response = await axios.post(`${API_URL}/bets/complete-session`, {
+      sessionId: paymentSession.value.sessionId,
+      numbers,
+      nickname: nickname_value.trim() || null
+    });
+    
+    successMessage.value = response.data.message;
+    
+    // Reset form
+    resetPaymentSession();
+    resetForm();
+    
+    // Reload data
+    await loadCurrentRound();
+    await loadRecentBets();
+    
+  } catch (error) {
+    console.error('Error completing bet session:', error);
+    errorMessage.value = error.response?.data?.error || 'Failed to complete bet. Please contact support.';
+  } finally {
+    isSubmitting.value = false;
+  }
+}
+
+function resetPaymentSession() {
+  paymentSession.value = null;
+  qrCodeDataUrl.value = '';
+  showingQRCode.value = false;
+  stopPaymentCheck();
+}
+
 function toggleNumber(num) {
   const index = selectedNumbers.value.indexOf(num);
   
@@ -694,25 +882,12 @@ async function placeBet() {
   errorMessage.value = '';
   
   try {
-    // Sort numbers and send all 6
-    const sortedNumbers = selectedNumbers.value.slice().sort((a, b) => a - b);
-    
-    const response = await axios.post(`${API_URL}/bets`, {
-      numbers: sortedNumbers,
-      transactionId: transactionId.value.trim(),
-      nickname: nickname.value.trim() || null
-    });
-    
-    successMessage.value = response.data.message;
-    
-    // Reload data
-    await loadCurrentRound();
-    await loadRecentBets();
+    // Initialize payment session for single bet
+    await initPaymentSession(1);
     
   } catch (error) {
     console.error('Error placing bet:', error);
     errorMessage.value = error.response?.data?.error || 'Failed to place bet. Please try again.';
-  } finally {
     isSubmitting.value = false;
   }
 }
@@ -721,8 +896,12 @@ function resetForm() {
   selectedNumbers.value = [];
   transactionId.value = '';
   nickname.value = '';
+  generatedBets.value = [];
+  multiTransactionId.value = '';
+  multiNickname.value = '';
   successMessage.value = '';
   errorMessage.value = '';
+  resetPaymentSession();
 }
 
 function generateRandomNumbers() {
@@ -763,27 +942,12 @@ async function placeMultipleBets() {
   errorMessage.value = '';
   
   try {
-    const response = await axios.post(`${API_URL}/bets/multiple`, {
-      bets: generatedBets.value.map(bet => ({ numbers: bet.numbers })),
-      transactionId: multiTransactionId.value.trim(),
-      nickname: multiNickname.value.trim() || null
-    });
-    
-    successMessage.value = response.data.message;
-    
-    // Reset form
-    generatedBets.value = [];
-    multiTransactionId.value = '';
-    multiNickname.value = '';
-    
-    // Reload data
-    await loadCurrentRound();
-    await loadRecentBets();
+    // Initialize payment session for multiple bets
+    await initPaymentSession(generatedBets.value.length);
     
   } catch (error) {
     console.error('Error placing multiple bets:', error);
     errorMessage.value = error.response?.data?.error || 'Failed to place bets. Please try again.';
-  } finally {
     isSubmitting.value = false;
   }
 }
@@ -840,6 +1004,18 @@ function formatTime(timestamp) {
   return `${Math.floor(diff / 86400)}d ago`;
 }
 
+function copyToClipboard(text) {
+  navigator.clipboard.writeText(text).then(() => {
+    // Show brief success feedback
+    const originalText = text;
+    setTimeout(() => {
+      console.log('Copied:', originalText);
+    }, 100);
+  }).catch(err => {
+    console.error('Failed to copy:', err);
+  });
+}
+
 // Load data on mount
 onMounted(async () => {
   await loadConfig(); // Load config first
@@ -848,6 +1024,11 @@ onMounted(async () => {
   
   // Refresh recent bets every 30 seconds
   setInterval(loadRecentBets, 30000);
+});
+
+// Cleanup on unmount
+onUnmounted(() => {
+  stopPaymentCheck();
 });
 </script>
 
