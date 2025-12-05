@@ -374,7 +374,8 @@ router.get('/check/:transactionId', async (req, res) => {
 
 /**
  * GET /api/bets/current-round
- * Get current round info with USD conversion and accumulated amount
+ * Get current round info with USD conversion
+ * Prize pool is calculated from ACTUAL wallet balance (80%)
  */
 router.get('/current-round', async (req, res) => {
   try {
@@ -388,44 +389,65 @@ router.get('/current-round', async (req, res) => {
       });
     }
     
-    // Calculate total pool from all validated bets in this round
+    // 🔥 NOVO: Buscar saldo REAL da carteira blockchain
+    const { getBalance } = await import('../services/blockchainService.js');
+    const walletAddress = process.env.RECEIVING_WALLET || '0x49Ebd6bf6a1eF004dab7586CE0680eab9e1aFbCb';
+    
+    let totalBalanceMatic = 0;
+    let balanceError = null;
+    
+    try {
+      const balance = await getBalance(walletAddress);
+      totalBalanceMatic = parseFloat(balance);
+    } catch (error) {
+      console.error('Error getting wallet balance:', error.message);
+      balanceError = error.message;
+      // Continue with 0 balance if blockchain query fails
+    }
+    
+    // Prize pool = 80% do saldo total da carteira
+    const prizePoolMatic = totalBalanceMatic * 0.80;
+    const houseFee = totalBalanceMatic * 0.05;
+    const accumulated = totalBalanceMatic * 0.15;
+    
+    // Convert to USD
+    const totalBalanceUsd = await convertMaticToUsd(totalBalanceMatic);
+    const prizePoolUsd = await convertMaticToUsd(prizePoolMatic);
+    const accumulatedUsd = await convertMaticToUsd(accumulated);
+    const exchangeRate = await getMaticToUsdRate();
+    
+    // Get bet count for display
     const bets = await Bet.find({
       roundId: currentRound.roundId,
       isValidated: true
     });
     
-    let newBetsMatic = 0;
-    for (const bet of bets) {
-      newBetsMatic += parseFloat(bet.transactionValue);
-    }
-    
-    // Add accumulated amount from previous round
-    const accumulatedMatic = parseFloat(currentRound.accumulatedAmount || '0');
-    const totalPoolMatic = newBetsMatic + accumulatedMatic;
-    
-    // Calculate prize pool (80% of new bets + all accumulated)
-    const prizePoolMatic = (newBetsMatic * 0.80) + accumulatedMatic;
-    
-    // Convert to USD
-    const totalPoolUsd = await convertMaticToUsd(totalPoolMatic);
-    const prizePoolUsd = await convertMaticToUsd(prizePoolMatic);
-    const accumulatedUsd = await convertMaticToUsd(accumulatedMatic);
-    const exchangeRate = await getMaticToUsdRate();
-    
-    // Add USD info to response
+    // Response data
     const roundData = {
-      ...currentRound,
-      newBetsMatic: newBetsMatic.toFixed(6),
-      accumulatedMatic: accumulatedMatic.toFixed(6),
-      totalPoolMatic: totalPoolMatic.toFixed(6),
+      ...currentRound.toObject(),
+      // Wallet balance (source of truth)
+      totalBalanceMatic: totalBalanceMatic.toFixed(6),
+      totalBalanceUsd: totalBalanceUsd.toFixed(2),
+      totalBalanceUsdFormatted: formatUsd(totalBalanceUsd),
+      
+      // Prize distribution
       prizePoolMatic: prizePoolMatic.toFixed(6),
-      totalPoolUsd: totalPoolUsd.toFixed(2),
-      totalPoolUsdFormatted: formatUsd(totalPoolUsd),
       prizePoolUsd: prizePoolUsd.toFixed(2),
       prizePoolUsdFormatted: formatUsd(prizePoolUsd),
+      
+      accumulatedMatic: accumulated.toFixed(6),
       accumulatedUsd: accumulatedUsd.toFixed(2),
       accumulatedUsdFormatted: formatUsd(accumulatedUsd),
-      exchangeRate: exchangeRate.toFixed(4)
+      
+      houseFee: houseFee.toFixed(6),
+      
+      // Exchange rate
+      exchangeRate: exchangeRate.toFixed(4),
+      
+      // Additional info
+      totalBets: bets.length,
+      walletAddress: walletAddress,
+      balanceError: balanceError
     };
     
     res.json({
