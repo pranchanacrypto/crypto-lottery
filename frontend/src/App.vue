@@ -72,7 +72,7 @@
             <!-- Instructions -->
             <div class="bg-blue-900/20 border border-blue-500/30 rounded-lg p-3 sm:p-4 mb-3 sm:mb-4">
               <p class="text-xs sm:text-sm text-blue-300">
-                <strong>How to pick:</strong> Select any 6 numbers from the grid below (1-69). 
+                <strong>How to pick:</strong> Select any 6 numbers from the grid below (1-60). 
                 <span class="text-gray-300">All balls count equally - choose your lucky numbers!</span>
               </p>
             </div>
@@ -86,11 +86,11 @@
             </div>
 
             
-            <!-- Single Number Grid (1-69) -->
+            <!-- Single Number Grid (1-60) -->
             <div class="mb-6">
               <div class="grid grid-cols-7 sm:grid-cols-8 md:grid-cols-10 gap-1.5 sm:gap-2">
                 <button
-                  v-for="num in 69"
+                  v-for="num in 60"
                   :key="num"
                   @click="toggleNumber(num)"
                   :disabled="!selectedNumbers.includes(num) && selectedNumbers.length >= 6"
@@ -220,7 +220,7 @@
               </li>
               <li class="flex gap-2 sm:gap-3">
                 <span class="flex-shrink-0 w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-purple-600 flex items-center justify-center text-[10px] sm:text-xs font-bold">3</span>
-                <span>Choose any 6 numbers (1-69). All count equally!</span>
+                <span>Choose any 6 numbers (1-60). All count equally!</span>
               </li>
               <li class="flex gap-2 sm:gap-3">
                 <span class="flex-shrink-0 w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-purple-600 flex items-center justify-center text-[10px] sm:text-xs font-bold">4</span>
@@ -273,7 +273,7 @@
                   <p class="text-[10px] text-gray-400 mb-1">Numbers:</p>
                   <div class="flex items-center gap-1.5 flex-wrap">
                     <div
-                      v-for="num in [...bet.numbers, bet.powerball].sort((a, b) => a - b)"
+                      v-for="num in bet.numbers.sort((a, b) => a - b)"
                       :key="num"
                       class="w-7 h-7 rounded-full bg-purple-600/30 border border-purple-500/50 flex items-center justify-center text-xs font-bold"
                     >
@@ -368,7 +368,7 @@
               </li>
               <li class="flex gap-3">
                 <span class="flex-shrink-0 w-6 h-6 rounded-full bg-purple-600 flex items-center justify-center text-xs font-bold">2</span>
-                <span>Choose any 6 numbers (1-69). <strong>All count equally!</strong></span>
+                <span>Choose any 6 numbers (1-60). <strong>All count equally!</strong></span>
               </li>
               <li class="flex gap-3">
                 <span class="flex-shrink-0 w-6 h-6 rounded-full bg-purple-600 flex items-center justify-center text-xs font-bold">3</span>
@@ -432,7 +432,7 @@
               <li>Each transaction can only be used once</li>
               <li>Your bet must be placed before the draw date</li>
               <li>Minimum bet: {{ betAmount }} MATIC</li>
-              <li>You must choose exactly 6 numbers (1-69)</li>
+              <li>You must choose exactly 6 numbers (1-60)</li>
               <li><strong>All 6 numbers count equally</strong> - no number is more important than another</li>
               <li>Only the <strong>total number of matches</strong> matters, not which specific numbers or order</li>
               <li>All transactions are validated on Polygon blockchain</li>
@@ -514,9 +514,9 @@ function toggleNumber(num) {
 function quickPick() {
   const numbers = [];
   
-  // Pick 6 random numbers (1-69)
+  // Pick 6 random numbers (1-60)
   while (numbers.length < 6) {
-    const num = Math.floor(Math.random() * 69) + 1;
+    const num = Math.floor(Math.random() * 60) + 1;
     if (!numbers.includes(num)) {
       numbers.push(num);
     }
@@ -533,14 +533,11 @@ async function placeBet() {
   errorMessage.value = '';
   
   try {
-    // Sort numbers and send last one as powerball
+    // Sort numbers and send all 6
     const sortedNumbers = selectedNumbers.value.slice().sort((a, b) => a - b);
-    const numbers = sortedNumbers.slice(0, 5);
-    const powerball = sortedNumbers[5];
     
     const response = await axios.post(`${API_URL}/bets`, {
-      numbers,
-      powerball,
+      numbers: sortedNumbers,
       transactionId: transactionId.value.trim(),
       nickname: nickname.value.trim() || null
     });

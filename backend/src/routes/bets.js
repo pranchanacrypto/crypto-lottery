@@ -12,34 +12,27 @@ const router = express.Router();
  */
 router.post('/', async (req, res) => {
   try {
-    const { numbers, powerball, transactionId, nickname } = req.body;
+    const { numbers, transactionId, nickname } = req.body;
     
     // Validation
-    if (!numbers || !Array.isArray(numbers) || numbers.length !== 5) {
+    if (!numbers || !Array.isArray(numbers) || numbers.length !== 6) {
       return res.status(400).json({
         success: false,
-        error: 'Must provide exactly 5 numbers'
-      });
-    }
-    
-    if (!powerball || powerball < 1 || powerball > 69) {
-      return res.status(400).json({
-        success: false,
-        error: 'Powerball must be between 1 and 69'
+        error: 'Must provide exactly 6 numbers'
       });
     }
     
     for (const num of numbers) {
-      if (num < 1 || num > 69) {
+      if (num < 1 || num > 60) {
         return res.status(400).json({
           success: false,
-          error: 'Numbers must be between 1 and 69'
+          error: 'Numbers must be between 1 and 60'
         });
       }
     }
     
     // Check for duplicates
-    if (new Set(numbers).size !== 5) {
+    if (new Set(numbers).size !== 6) {
       return res.status(400).json({
         success: false,
         error: 'Numbers must be unique'
@@ -93,7 +86,6 @@ router.post('/', async (req, res) => {
     // Create bet
     const bet = await Bet.create({
       numbers: numbers.sort((a, b) => a - b),
-      powerball,
       transactionId,
       nickname: nickname || null,
       roundId: currentRound.roundId,
@@ -209,8 +201,7 @@ router.get('/check/:transactionId', async (req, res) => {
           roundId: round.roundId,
           drawDate: round.drawDate,
           isFinalized: round.isFinalized,
-          winningNumbers: round.winningNumbers,
-          winningPowerball: round.winningPowerball
+          winningNumbers: round.winningNumbers
         }
       }
     });

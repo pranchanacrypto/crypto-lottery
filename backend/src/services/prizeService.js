@@ -33,9 +33,7 @@ export async function calculateWinners(round) {
     for (const bet of bets) {
       const matches = countMatches(
         bet.numbers,
-        bet.powerball,
-        round.winningNumbers,
-        round.winningPowerball
+        round.winningNumbers
       );
       
       bet.matches = matches;
@@ -65,19 +63,14 @@ export async function calculateWinners(round) {
 /**
  * Count matching numbers
  */
-function countMatches(betNumbers, betPowerball, winningNumbers, winningPowerball) {
+function countMatches(betNumbers, winningNumbers) {
   let matches = 0;
   
-  // Count regular number matches
+  // Count number matches (all 6 numbers are equal now)
   for (const num of betNumbers) {
     if (winningNumbers.includes(num)) {
       matches++;
     }
-  }
-  
-  // Add powerball match
-  if (betPowerball === winningPowerball) {
-    matches++;
   }
   
   return matches;

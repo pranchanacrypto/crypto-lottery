@@ -60,19 +60,15 @@ class BetModel {
 
   static async create(betData) {
     // Validation
-    if (!Array.isArray(betData.numbers) || betData.numbers.length !== 5) {
-      throw new Error('Must have exactly 5 numbers between 1 and 69');
+    if (!Array.isArray(betData.numbers) || betData.numbers.length !== 6) {
+      throw new Error('Must have exactly 6 numbers between 1 and 60');
     }
-    if (!betData.numbers.every(n => n >= 1 && n <= 69)) {
-      throw new Error('Numbers must be between 1 and 69');
-    }
-    if (betData.powerball < 1 || betData.powerball > 26) {
-      throw new Error('Powerball must be between 1 and 26');
+    if (!betData.numbers.every(n => n >= 1 && n <= 60)) {
+      throw new Error('Numbers must be between 1 and 60');
     }
 
     const bet = {
       numbers: betData.numbers,
-      powerball: betData.powerball,
       transactionId: betData.transactionId,
       fromAddress: betData.fromAddress,
       transactionValue: betData.transactionValue,

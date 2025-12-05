@@ -63,40 +63,33 @@ router.post('/check', async (req, res) => {
  */
 router.post('/manual', async (req, res) => {
   try {
-    const { drawDate, numbers, powerball } = req.body;
+    const { drawDate, numbers } = req.body;
     
     // Validation
-    if (!drawDate || !numbers || !powerball) {
+    if (!drawDate || !numbers) {
       return res.status(400).json({
         success: false,
-        error: 'Missing required fields: drawDate, numbers, powerball'
+        error: 'Missing required fields: drawDate, numbers'
       });
     }
     
-    if (!Array.isArray(numbers) || numbers.length !== 5) {
+    if (!Array.isArray(numbers) || numbers.length !== 6) {
       return res.status(400).json({
         success: false,
-        error: 'Numbers must be an array of 5 numbers'
+        error: 'Numbers must be an array of 6 numbers'
       });
     }
     
     for (const num of numbers) {
-      if (num < 1 || num > 69) {
+      if (num < 1 || num > 60) {
         return res.status(400).json({
           success: false,
-          error: 'Numbers must be between 1 and 69'
+          error: 'Numbers must be between 1 and 60'
         });
       }
     }
     
-    if (powerball < 1 || powerball > 26) {
-      return res.status(400).json({
-        success: false,
-        error: 'Powerball must be between 1 and 26'
-      });
-    }
-    
-    const result = await manualEntryResults(drawDate, numbers, powerball);
+    const result = await manualEntryResults(drawDate, numbers);
     
     res.json({
       success: true,
