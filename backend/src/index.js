@@ -50,10 +50,10 @@ app.use((req, res, next) => {
 
 app.use(express.json());
 
-// Connect to MongoDB
+// Connect to MongoDB (non-blocking, will auto-reconnect)
 connectDB().catch(err => {
-  console.error('❌ Failed to connect to MongoDB:', err.message);
-  process.exit(1);
+  console.error('❌ Failed initial MongoDB connection:', err.message);
+  console.log('⚠️  Server will continue running. MongoDB will retry connection automatically.');
 });
 
 // Routes
