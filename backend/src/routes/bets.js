@@ -424,7 +424,10 @@ router.get('/current-round', async (req, res) => {
     
     // Response data
     const roundData = {
-      ...currentRound.toObject(),
+      roundId: currentRound.roundId,
+      startTime: currentRound.startTime,
+      drawDate: currentRound.drawDate,
+      isFinalized: currentRound.isFinalized,
       // Wallet balance (source of truth)
       totalBalanceMatic: totalBalanceMatic.toFixed(6),
       totalBalanceUsd: totalBalanceUsd.toFixed(2),
