@@ -3,14 +3,31 @@ import BetModel from '../models/BetSchema.js';
 import RoundModel from '../models/RoundSchema.js';
 import PowerballResultModel from '../models/PowerballResultSchema.js';
 
-let isConnected = false;
+let connectionAttempted = false;
 
 /**
- * Connect to MongoDB
+ * Check if MongoDB is connected
+ */
+function isConnected() {
+  return mongoose.connection.readyState === 1;
+}
+
+/**
+ * Connect to MongoDB with auto-reconnection
  */
 export async function connectDB() {
-  if (isConnected) {
-    console.log('📦 MongoDB already connected');
+  // If already connected, return immediately
+  if (isConnected()) {
+    return;
+  }
+
+  // If connection is in progress, wait for it
+  if (mongoose.connection.readyState === 2) {
+    console.log('⏳ MongoDB connection in progress...');
+    await new Promise((resolve) => {
+      mongoose.connection.once('connected', resolve);
+      setTimeout(resolve, 10000); // Timeout after 10s
+    });
     return;
   }
 
@@ -21,23 +38,34 @@ export async function connectDB() {
       throw new Error('MONGODB_URI not found in environment variables');
     }
 
+    // Setup connection event handlers only once
+    if (!connectionAttempted) {
+      connectionAttempted = true;
+
+      mongoose.connection.on('connected', () => {
+        console.log('✅ MongoDB connected successfully');
+      });
+
+      mongoose.connection.on('error', (err) => {
+        console.error('❌ MongoDB connection error:', err.message);
+      });
+
+      mongoose.connection.on('disconnected', () => {
+        console.log('📡 MongoDB disconnected - will auto-reconnect');
+      });
+
+      mongoose.connection.on('reconnected', () => {
+        console.log('🔄 MongoDB reconnected successfully');
+      });
+    }
+
     await mongoose.connect(mongoUri, {
-      serverSelectionTimeoutMS: 5000,
+      serverSelectionTimeoutMS: 30000, // 30 seconds
       socketTimeoutMS: 45000,
-    });
-
-    isConnected = true;
-    console.log('✅ MongoDB connected successfully');
-
-    // Handle connection events
-    mongoose.connection.on('error', (err) => {
-      console.error('❌ MongoDB connection error:', err);
-      isConnected = false;
-    });
-
-    mongoose.connection.on('disconnected', () => {
-      console.log('📡 MongoDB disconnected');
-      isConnected = false;
+      maxPoolSize: 10,
+      minPoolSize: 2,
+      // Mongoose 6+ uses native MongoDB driver's auto-reconnection
+      // No need for deprecated options
     });
 
   } catch (error) {
