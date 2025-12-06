@@ -246,6 +246,11 @@ export async function getBalance(address) {
  * @param {number} limit - Number of recent transactions to fetch
  * @returns {Promise<Array>} List of recent transactions
  */
+// Helper function to add delay
+function delay(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 export async function getRecentTransactions(limit = 10) {
   try {
     if (!provider) initProvider();
@@ -257,9 +262,10 @@ export async function getRecentTransactions(limit = 10) {
     console.log(`📦 Current block: ${currentBlock}`);
     
     const transactions = [];
-    const blocksToCheck = Math.min(500, limit * 50); // Check up to 500 blocks (~15-20 minutes)
+    const blocksToCheck = Math.min(50, limit * 5); // Reduced to 50 blocks (~1-2 minutes) to avoid RPC limits
+    const delayMs = 100; // 100ms delay between requests to avoid rate limiting
     
-    console.log(`📊 Checking last ${blocksToCheck} blocks...`);
+    console.log(`📊 Checking last ${blocksToCheck} blocks with ${delayMs}ms delay...`);
     
     for (let i = 0; i < blocksToCheck && transactions.length < limit; i++) {
       try {
@@ -270,10 +276,7 @@ export async function getRecentTransactions(limit = 10) {
           for (const tx of block.transactions) {
             if (typeof tx === 'object' && tx.to && tx.to.toLowerCase() === RECEIVING_WALLET.toLowerCase()) {
               const value = ethers.formatEther(tx.value);
-              const valueFloat = parseFloat(value);
               
-              // Include ALL transactions to the wallet (not just those >= BET_AMOUNT)
-              // This helps with debugging
               transactions.push({
                 hash: tx.hash,
                 from: tx.from,
@@ -290,17 +293,25 @@ export async function getRecentTransactions(limit = 10) {
             }
           }
         }
+        
+        // Add delay to avoid overwhelming RPC
+        if (i < blocksToCheck - 1) {
+          await delay(delayMs);
+        }
+        
       } catch (blockError) {
-        // Silent fail for individual blocks
+        console.warn(`  ⚠️ Error on block ${currentBlock - i}: ${blockError.message}`);
+        // Continue despite errors
       }
     }
     
-    console.log(`✅ Found ${transactions.length} transactions total`);
+    console.log(`✅ Found ${transactions.length} transactions in last ${blocksToCheck} blocks`);
     return transactions;
     
   } catch (error) {
     console.error('❌ Error getting recent transactions:', error.message);
-    throw error;
+    // Return empty array instead of throwing - allows the system to continue
+    return [];
   }
 }
 
