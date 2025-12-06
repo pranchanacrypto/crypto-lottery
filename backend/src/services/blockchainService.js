@@ -217,8 +217,22 @@ export async function sendPayment(toAddress, amount) {
  */
 export async function getBalance(address) {
   try {
-    if (!provider) initProvider();
+    // Try using PolygonScan API V2 first (more reliable)
+    if (POLYGONSCAN_API_KEY) {
+      try {
+        const url = `https://api.polygonscan.com/v2/api?chainid=137&module=account&action=balance&address=${address}&tag=latest&apikey=${POLYGONSCAN_API_KEY}`;
+        const response = await axios.get(url);
+        
+        if (response.data.status === '1') {
+          return ethers.formatEther(response.data.result);
+        }
+      } catch (apiError) {
+        console.warn('PolygonScan API failed, falling back to RPC:', apiError.message);
+      }
+    }
     
+    // Fallback to RPC provider
+    if (!provider) initProvider();
     const balance = await provider.getBalance(address);
     return ethers.formatEther(balance);
   } catch (error) {
@@ -234,11 +248,72 @@ export async function getBalance(address) {
  */
 export async function getRecentTransactions(limit = 10) {
   try {
+    if (!provider) initProvider();
+    
+    // Get recent block number
+    const currentBlock = await provider.getBlockNumber();
+    const fromBlock = currentBlock - 10000; // Last ~10000 blocks (about 5-6 hours on Polygon)
+    
+    // Get transaction history using eth_getLogs
+    const filter = {
+      address: null, // Any contract
+      fromBlock,
+      toBlock: 'latest',
+      topics: null
+    };
+    
+    // Alternative: Get recent blocks and check transactions
+    const transactions = [];
+    const blocksToCheck = Math.min(100, limit * 5); // Check recent blocks
+    
+    for (let i = 0; i < blocksToCheck && transactions.length < limit; i++) {
+      try {
+        const blockNumber = currentBlock - i;
+        const block = await provider.getBlock(blockNumber, true);
+        
+        if (block && block.transactions) {
+          for (const tx of block.transactions) {
+            if (typeof tx === 'object' && tx.to && tx.to.toLowerCase() === RECEIVING_WALLET.toLowerCase()) {
+              const value = ethers.formatEther(tx.value);
+              if (parseFloat(value) >= parseFloat(BET_AMOUNT)) {
+                transactions.push({
+                  hash: tx.hash,
+                  from: tx.from,
+                  to: tx.to,
+                  value: value,
+                  timestamp: new Date(block.timestamp * 1000),
+                  blockNumber: block.number,
+                  confirmations: currentBlock - block.number
+                });
+                
+                if (transactions.length >= limit) break;
+              }
+            }
+          }
+        }
+      } catch (blockError) {
+        console.warn(`Error fetching block ${currentBlock - i}:`, blockError.message);
+      }
+    }
+    
+    return transactions;
+  } catch (error) {
+    console.error('Error getting recent transactions:', error.message);
+    
+    // Fallback: return empty array instead of throwing
+    console.warn('Returning empty transaction list due to error');
+    return [];
+  }
+}
+
+// Alternative: Get transactions using PolygonScan API (deprecated, kept for reference)
+export async function getRecentTransactionsViaAPI(limit = 10) {
+  try {
     if (!POLYGONSCAN_API_KEY) {
       throw new Error('PolygonScan API key required for transaction monitoring');
     }
     
-    // Get transactions using PolygonScan API
+    // Try old V1 API (may be deprecated)
     const url = `https://api.polygonscan.com/api?module=account&action=txlist&address=${RECEIVING_WALLET}&startblock=0&endblock=99999999&page=1&offset=${limit}&sort=desc&apikey=${POLYGONSCAN_API_KEY}`;
     
     const response = await axios.get(url);
@@ -249,7 +324,7 @@ export async function getRecentTransactions(limit = 10) {
     
     const transactions = response.data.result;
     
-    // Filter and format transactions
+    // Filter and format transactions (for API version)
     return transactions
       .filter(tx => 
         tx.to.toLowerCase() === RECEIVING_WALLET.toLowerCase() &&
@@ -267,7 +342,7 @@ export async function getRecentTransactions(limit = 10) {
       }));
     
   } catch (error) {
-    console.error('Error getting recent transactions:', error.message);
+    console.error('Error getting recent transactions via API:', error.message);
     throw error;
   }
 }
