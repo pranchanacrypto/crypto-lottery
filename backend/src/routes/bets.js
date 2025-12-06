@@ -646,7 +646,7 @@ router.get('/check-payment/:sessionId', async (req, res) => {
  */
 router.post('/complete-session', async (req, res) => {
   try {
-    const { sessionId, numbers, nickname } = req.body;
+    const { sessionId, numbers, nickname, manualTransactionId } = req.body;
     
     const session = pendingBetSessions.get(sessionId);
     
@@ -657,11 +657,20 @@ router.post('/complete-session', async (req, res) => {
       });
     }
     
-    if (!session.transactionId) {
+    // Allow manual transaction ID if provided
+    let transactionId = session.transactionId || manualTransactionId;
+    
+    if (!transactionId) {
       return res.status(400).json({
         success: false,
         error: 'Payment not yet received'
       });
+    }
+    
+    // Store manual transaction ID in session if provided
+    if (manualTransactionId && !session.transactionId) {
+      session.transactionId = manualTransactionId;
+      pendingBetSessions.set(sessionId, session);
     }
     
     // Validate numbers
@@ -697,11 +706,12 @@ router.post('/complete-session', async (req, res) => {
     // Validate transaction one more time
     let txDetails;
     try {
-      txDetails = await validateTransaction(session.transactionId);
+      txDetails = await validateTransaction(transactionId);
     } catch (error) {
+      console.error('Transaction validation error:', error.message);
       return res.status(400).json({
         success: false,
-        error: `Transaction validation failed: ${error.message}`
+        error: `Transaction validation failed: ${error.message}. Please make sure the transaction is confirmed on the blockchain.`
       });
     }
     

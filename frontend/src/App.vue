@@ -519,6 +519,27 @@
             <p class="text-xs text-gray-500 mt-2">
               Your bet will be automatically confirmed once payment is detected
             </p>
+            
+            <!-- Manual Transaction Input (if auto-detection takes too long) -->
+            <div v-if="checkingPayment" class="mt-4 pt-4 border-t border-gray-700">
+              <p class="text-xs text-gray-400 mb-2">Payment not detected automatically?</p>
+              <input
+                v-model="manualTxHash"
+                type="text"
+                placeholder="Paste transaction hash (0x...)"
+                class="input text-xs w-full mb-2"
+              />
+              <button
+                @click="submitManualTransaction"
+                :disabled="!manualTxHash || manualTxHash.length < 10"
+                class="btn bg-blue-600 hover:bg-blue-700 text-white text-xs w-full"
+              >
+                ✓ Confirm with Transaction Hash
+              </button>
+              <p class="text-xs text-gray-500 mt-1">
+                Find your transaction hash in your wallet's transaction history
+              </p>
+            </div>
           </div>
 
           <!-- Instructions -->
@@ -718,6 +739,7 @@ const qrCodeDataUrl = ref('');
 const checkingPayment = ref(false);
 const paymentCheckInterval = ref(null);
 const showingQRCode = ref(false);
+const manualTxHash = ref('');
 
 // Computed
 const isValidBet = computed(() => {
@@ -820,7 +842,8 @@ async function completeBetSession() {
     const response = await axios.post(`${API_URL}/bets/complete-session`, {
       sessionId: paymentSession.value.sessionId,
       numbers,
-      nickname: nickname_value.trim() || null
+      nickname: nickname_value.trim() || null,
+      manualTransactionId: paymentSession.value.transactionId || null
     });
     
     successMessage.value = response.data.message;
@@ -845,6 +868,7 @@ function resetPaymentSession() {
   paymentSession.value = null;
   qrCodeDataUrl.value = '';
   showingQRCode.value = false;
+  manualTxHash.value = '';
   stopPaymentCheck();
 }
 
@@ -1014,6 +1038,36 @@ function copyToClipboard(text) {
   }).catch(err => {
     console.error('Failed to copy:', err);
   });
+}
+
+async function submitManualTransaction() {
+  if (!manualTxHash.value || !paymentSession.value) return;
+  
+  try {
+    isSubmitting.value = true;
+    errorMessage.value = '';
+    
+    // Validate transaction hash format
+    if (!manualTxHash.value.match(/^0x[a-fA-F0-9]{64}$/)) {
+      errorMessage.value = 'Invalid transaction hash format. Should start with 0x and be 66 characters long.';
+      isSubmitting.value = false;
+      return;
+    }
+    
+    // Update session with manual transaction ID
+    paymentSession.value.transactionId = manualTxHash.value;
+    
+    // Stop automatic checking
+    stopPaymentCheck();
+    
+    // Complete the bet session with manual transaction
+    await completeBetSession();
+    
+  } catch (error) {
+    console.error('Error submitting manual transaction:', error);
+    errorMessage.value = error.response?.data?.error || 'Failed to submit transaction. Please try again.';
+    isSubmitting.value = false;
+  }
 }
 
 // Load data on mount
