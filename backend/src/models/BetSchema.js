@@ -6,24 +6,20 @@ const BetSchema = new mongoose.Schema({
     required: true,
     validate: {
       validator: function(v) {
-        return v.length === 5 && v.every(n => n >= 1 && n <= 69);
+        return v.length === 6 && v.every(n => n >= 1 && n <= 60);
       },
-      message: 'Must have exactly 5 numbers between 1 and 69'
+      message: 'Must have exactly 6 numbers between 1 and 60'
     }
-  },
-  powerball: {
-    type: Number,
-    required: true,
-    min: 1,
-    max: 26
   },
   transactionId: {
     type: String,
-    required: true
+    required: false, // Not required initially, will be added when payment is found
+    default: null
   },
   fromAddress: {
     type: String,
-    required: true
+    required: false,
+    default: null
   },
   transactionValue: {
     type: String,
@@ -31,7 +27,8 @@ const BetSchema = new mongoose.Schema({
   },
   transactionTimestamp: {
     type: Date,
-    required: true
+    required: false,
+    default: null
   },
   nickname: {
     type: String,
@@ -41,6 +38,11 @@ const BetSchema = new mongoose.Schema({
     type: Number,
     required: true
   },
+  paymentStatus: {
+    type: String,
+    enum: ['pending', 'paid', 'failed'],
+    default: 'pending'
+  },
   isValidated: {
     type: Boolean,
     default: false
@@ -48,6 +50,14 @@ const BetSchema = new mongoose.Schema({
   validationError: {
     type: String,
     default: null
+  },
+  lastPaymentCheck: {
+    type: Date,
+    default: null
+  },
+  paymentCheckAttempts: {
+    type: Number,
+    default: 0
   },
   matches: {
     type: Number,
@@ -80,7 +90,8 @@ const BetSchema = new mongoose.Schema({
 // Indexes for better query performance
 BetSchema.index({ roundId: 1, isValidated: 1 });
 BetSchema.index({ roundId: 1, isPaid: 1 });
-BetSchema.index({ transactionId: 1 }, { unique: true });
+BetSchema.index({ paymentStatus: 1 }); // For finding pending bets
+BetSchema.index({ transactionId: 1 }, { unique: true, sparse: true }); // Sparse index allows nulls
 
 export default mongoose.model('Bet', BetSchema);
 

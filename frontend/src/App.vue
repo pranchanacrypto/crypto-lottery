@@ -402,31 +402,42 @@
                   </div>
                 </div>
                 
-                <!-- Transaction Status -->
+                <!-- Payment Status -->
                 <div>
-                  <p class="text-[10px] text-gray-400 mb-1">Status:</p>
-                  <a
-                    :href="`https://polygonscan.com/tx/${bet.transactionId}`"
-                    target="_blank"
-                    class="inline-flex items-center gap-1.5"
-                    title="Click to view transaction on PolygonScan"
-                  >
-                    <span 
-                      v-if="bet.isValidated"
-                      class="text-[10px] bg-green-600/30 text-green-400 border border-green-500/50 px-2 py-0.5 rounded font-semibold hover:bg-green-600/50 transition cursor-pointer"
+                  <p class="text-[10px] text-gray-400 mb-1">Payment:</p>
+                  <div v-if="bet.paymentStatus === 'paid'" class="inline-flex items-center gap-1.5">
+                    <a
+                      :href="`https://polygonscan.com/tx/${bet.transactionId}`"
+                      target="_blank"
+                      class="inline-flex items-center gap-1.5"
+                      title="Click to view transaction on PolygonScan"
                     >
-                      ✓ Validated
-                    </span>
+                      <span 
+                        class="text-[10px] bg-green-600/30 text-green-400 border border-green-500/50 px-2 py-0.5 rounded font-semibold hover:bg-green-600/50 transition cursor-pointer"
+                      >
+                        ✓ Paid
+                      </span>
+                      <svg class="w-3 h-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
+                      </svg>
+                    </a>
+                  </div>
+                  <div v-else-if="bet.paymentStatus === 'pending'" class="inline-flex items-center gap-1.5">
                     <span 
-                      v-else
-                      class="text-[10px] bg-yellow-600/30 text-yellow-400 border border-yellow-500/50 px-2 py-0.5 rounded font-semibold hover:bg-yellow-600/50 transition cursor-pointer"
+                      class="text-[10px] bg-yellow-600/30 text-yellow-400 border border-yellow-500/50 px-2 py-0.5 rounded font-semibold"
+                      title="Waiting for payment"
                     >
-                      ⏳ Pending
+                      ⏳ Awaiting Payment
                     </span>
-                    <svg class="w-3 h-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
-                    </svg>
-                  </a>
+                  </div>
+                  <div v-else-if="bet.paymentStatus === 'failed'" class="inline-flex items-center gap-1.5">
+                    <span 
+                      class="text-[10px] bg-red-600/30 text-red-400 border border-red-500/50 px-2 py-0.5 rounded font-semibold"
+                      title="Payment not detected"
+                    >
+                      ✗ Payment Failed
+                    </span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -517,27 +528,13 @@
               <span class="text-sm font-semibold">Waiting for payment...</span>
             </div>
             <p class="text-xs text-gray-500 mt-2">
-              Your bet will be automatically confirmed once payment is detected
+              Your bet will be automatically confirmed once payment is detected (checks every 10 seconds)
             </p>
             
-            <!-- Manual Transaction Input (if auto-detection takes too long) -->
-            <div v-if="checkingPayment" class="mt-4 pt-4 border-t border-gray-700">
-              <p class="text-xs text-gray-400 mb-2">Payment not detected automatically?</p>
-              <input
-                v-model="manualTxHash"
-                type="text"
-                placeholder="Paste transaction hash (0x...)"
-                class="input text-xs w-full mb-2"
-              />
-              <button
-                @click="submitManualTransaction"
-                :disabled="!manualTxHash || manualTxHash.length < 10"
-                class="btn bg-blue-600 hover:bg-blue-700 text-white text-xs w-full"
-              >
-                ✓ Confirm with Transaction Hash
-              </button>
-              <p class="text-xs text-gray-500 mt-1">
-                Find your transaction hash in your wallet's transaction history
+            <div class="mt-3 bg-blue-900/20 border border-blue-500/30 rounded-lg p-2">
+              <p class="text-xs text-blue-300">
+                💡 <strong>Note:</strong> You can close this window and your bet will still be monitored automatically. 
+                Payment detection happens in the background.
               </p>
             </div>
           </div>
@@ -740,6 +737,7 @@ const checkingPayment = ref(false);
 const paymentCheckInterval = ref(null);
 const showingQRCode = ref(false);
 const manualTxHash = ref('');
+const currentBetId = ref(null); // ID da aposta sendo monitorada
 
 // Computed
 const isValidBet = computed(() => {
@@ -757,110 +755,11 @@ const totalMultiBetAmount = computed(() => {
 });
 
 // Methods
-async function initPaymentSession(betCount = 1) {
-  try {
-    const response = await axios.post(`${API_URL}/bets/init-session`, {
-      betCount
-    });
-    
-    paymentSession.value = response.data.data;
-    
-    // Generate QR code
-    const paymentUri = `ethereum:${paymentSession.value.receivingWallet}@137?value=${parseFloat(paymentSession.value.totalAmount) * 1e18}`;
-    qrCodeDataUrl.value = await QRCode.toDataURL(paymentUri, {
-      width: 300,
-      margin: 2,
-      color: {
-        dark: '#9333ea', // purple-600
-        light: '#ffffff'
-      }
-    });
-    
-    showingQRCode.value = true;
-    
-    // Start checking for payment
-    startPaymentCheck();
-    
-    return paymentSession.value;
-  } catch (error) {
-    console.error('Error initializing payment session:', error);
-    errorMessage.value = 'Failed to initialize payment session';
-    throw error;
-  }
-}
-
-function startPaymentCheck() {
-  checkingPayment.value = true;
-  
-  // Check immediately
-  checkPayment();
-  
-  // Then check every 5 seconds
-  paymentCheckInterval.value = setInterval(checkPayment, 5000);
-}
-
 function stopPaymentCheck() {
   checkingPayment.value = false;
   if (paymentCheckInterval.value) {
     clearInterval(paymentCheckInterval.value);
     paymentCheckInterval.value = null;
-  }
-}
-
-async function checkPayment() {
-  if (!paymentSession.value) return;
-  
-  try {
-    const response = await axios.get(`${API_URL}/bets/check-payment/${paymentSession.value.sessionId}`);
-    
-    if (response.data.data.paymentFound) {
-      stopPaymentCheck();
-      
-      // Payment confirmed! Now submit the bet
-      await completeBetSession();
-    }
-  } catch (error) {
-    console.error('Error checking payment:', error);
-  }
-}
-
-async function completeBetSession() {
-  try {
-    isSubmitting.value = true;
-    
-    let numbers;
-    let nickname_value;
-    
-    if (betMode.value === 'single') {
-      numbers = selectedNumbers.value;
-      nickname_value = nickname.value;
-    } else {
-      numbers = generatedBets.value.map(bet => bet.numbers);
-      nickname_value = multiNickname.value;
-    }
-    
-    const response = await axios.post(`${API_URL}/bets/complete-session`, {
-      sessionId: paymentSession.value.sessionId,
-      numbers,
-      nickname: nickname_value.trim() || null,
-      manualTransactionId: paymentSession.value.transactionId || null
-    });
-    
-    successMessage.value = response.data.message;
-    
-    // Reset form
-    resetPaymentSession();
-    resetForm();
-    
-    // Reload data
-    await loadCurrentRound();
-    await loadRecentBets();
-    
-  } catch (error) {
-    console.error('Error completing bet session:', error);
-    errorMessage.value = error.response?.data?.error || 'Failed to complete bet. Please contact support.';
-  } finally {
-    isSubmitting.value = false;
   }
 }
 
@@ -906,8 +805,19 @@ async function placeBet() {
   errorMessage.value = '';
   
   try {
-    // Initialize payment session for single bet
-    await initPaymentSession(1);
+    // Register bet immediately
+    const response = await axios.post(`${API_URL}/bets`, {
+      numbers: selectedNumbers.value,
+      nickname: nickname.value.trim() || null
+    });
+    
+    const betData = response.data.data;
+    
+    // Show payment QR code
+    await showPaymentModal(betData.betId, 1, betData.expectedAmount);
+    
+    // Start polling for payment status
+    startBetPaymentPolling(betData.betId);
     
   } catch (error) {
     console.error('Error placing bet:', error);
@@ -966,13 +876,141 @@ async function placeMultipleBets() {
   errorMessage.value = '';
   
   try {
-    // Initialize payment session for multiple bets
-    await initPaymentSession(generatedBets.value.length);
+    // Register all bets
+    const betIds = [];
+    
+    for (const generatedBet of generatedBets.value) {
+      const response = await axios.post(`${API_URL}/bets`, {
+        numbers: generatedBet.numbers,
+        nickname: multiNickname.value.trim() || null
+      });
+      
+      betIds.push(response.data.data.betId);
+    }
+    
+    const totalAmount = (parseFloat(betAmount.value) * betIds.length).toFixed(6);
+    
+    // Show payment QR code
+    await showPaymentModal(betIds, betIds.length, totalAmount);
+    
+    // Start polling for payment status of all bets
+    startMultipleBetPaymentPolling(betIds);
     
   } catch (error) {
     console.error('Error placing multiple bets:', error);
     errorMessage.value = error.response?.data?.error || 'Failed to place bets. Please try again.';
     isSubmitting.value = false;
+  }
+}
+
+async function showPaymentModal(betId, betCount, amount) {
+  const receivingWallet = process.env.RECEIVING_WALLET || '0x49Ebd6bf6a1eF004dab7586CE0680eab9e1aFbCb';
+  
+  paymentSession.value = {
+    betId: betId,
+    betCount: betCount,
+    totalAmount: amount,
+    receivingWallet: receivingWallet
+  };
+  
+  // Generate QR code
+  const paymentUri = `ethereum:${receivingWallet}@137?value=${parseFloat(amount) * 1e18}`;
+  qrCodeDataUrl.value = await QRCode.toDataURL(paymentUri, {
+    width: 300,
+    margin: 2,
+    color: {
+      dark: '#9333ea', // purple-600
+      light: '#ffffff'
+    }
+  });
+  
+  showingQRCode.value = true;
+  checkingPayment.value = true;
+}
+
+function startBetPaymentPolling(betId) {
+  currentBetId.value = betId;
+  
+  // Check immediately
+  checkBetPaymentStatus(betId);
+  
+  // Then check every 10 seconds
+  paymentCheckInterval.value = setInterval(() => {
+    checkBetPaymentStatus(betId);
+  }, 10000);
+}
+
+function startMultipleBetPaymentPolling(betIds) {
+  currentBetId.value = betIds;
+  
+  // Check immediately
+  checkMultipleBetPaymentStatus(betIds);
+  
+  // Then check every 10 seconds
+  paymentCheckInterval.value = setInterval(() => {
+    checkMultipleBetPaymentStatus(betIds);
+  }, 10000);
+}
+
+async function checkBetPaymentStatus(betId) {
+  try {
+    const response = await axios.get(`${API_URL}/bets/${betId}`);
+    const bet = response.data.data.bet;
+    
+    if (bet.paymentStatus === 'paid') {
+      // Payment confirmed!
+      stopPaymentCheck();
+      showingQRCode.value = false;
+      successMessage.value = `Bet placed successfully! Your bet has been confirmed.`;
+      resetForm();
+      
+      // Reload data
+      await loadCurrentRound();
+      await loadRecentBets();
+    } else if (bet.paymentStatus === 'failed') {
+      stopPaymentCheck();
+      showingQRCode.value = false;
+      errorMessage.value = 'Payment not detected. Please try again.';
+    }
+  } catch (error) {
+    console.error('Error checking bet payment:', error);
+  }
+}
+
+async function checkMultipleBetPaymentStatus(betIds) {
+  try {
+    // Check all bets
+    let allPaid = true;
+    let anyFailed = false;
+    
+    for (const betId of betIds) {
+      const response = await axios.get(`${API_URL}/bets/${betId}`);
+      const bet = response.data.data.bet;
+      
+      if (bet.paymentStatus === 'pending') {
+        allPaid = false;
+      } else if (bet.paymentStatus === 'failed') {
+        anyFailed = true;
+      }
+    }
+    
+    if (allPaid) {
+      // All payments confirmed!
+      stopPaymentCheck();
+      showingQRCode.value = false;
+      successMessage.value = `All ${betIds.length} bets placed successfully!`;
+      resetForm();
+      
+      // Reload data
+      await loadCurrentRound();
+      await loadRecentBets();
+    } else if (anyFailed) {
+      stopPaymentCheck();
+      showingQRCode.value = false;
+      errorMessage.value = 'Payment not detected for some bets. Please contact support.';
+    }
+  } catch (error) {
+    console.error('Error checking multiple bet payments:', error);
   }
 }
 
@@ -1041,33 +1079,8 @@ function copyToClipboard(text) {
 }
 
 async function submitManualTransaction() {
-  if (!manualTxHash.value || !paymentSession.value) return;
-  
-  try {
-    isSubmitting.value = true;
-    errorMessage.value = '';
-    
-    // Validate transaction hash format
-    if (!manualTxHash.value.match(/^0x[a-fA-F0-9]{64}$/)) {
-      errorMessage.value = 'Invalid transaction hash format. Should start with 0x and be 66 characters long.';
-      isSubmitting.value = false;
-      return;
-    }
-    
-    // Update session with manual transaction ID
-    paymentSession.value.transactionId = manualTxHash.value;
-    
-    // Stop automatic checking
-    stopPaymentCheck();
-    
-    // Complete the bet session with manual transaction
-    await completeBetSession();
-    
-  } catch (error) {
-    console.error('Error submitting manual transaction:', error);
-    errorMessage.value = error.response?.data?.error || 'Failed to submit transaction. Please try again.';
-    isSubmitting.value = false;
-  }
+  // Função removida - não mais necessária com a nova abordagem
+  errorMessage.value = 'Manual transaction submission is no longer supported. Payment will be detected automatically.';
 }
 
 // Load data on mount

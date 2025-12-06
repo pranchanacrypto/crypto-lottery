@@ -11,11 +11,11 @@ const pendingBetSessions = new Map();
 
 /**
  * POST /api/bets
- * Place a new bet
+ * Place a new bet (registers immediately, payment validated later)
  */
 router.post('/', async (req, res) => {
   try {
-    const { numbers, transactionId, nickname } = req.body;
+    const { numbers, nickname } = req.body;
     
     // Validation
     if (!numbers || !Array.isArray(numbers) || numbers.length !== 6) {
@@ -42,27 +42,12 @@ router.post('/', async (req, res) => {
       });
     }
     
-    if (!transactionId) {
-      return res.status(400).json({
-        success: false,
-        error: 'Transaction ID is required'
-      });
-    }
-    
-    // Check if transaction already used
-    const existingBet = await Bet.findOne({ transactionId });
-    if (existingBet) {
-      return res.status(400).json({
-        success: false,
-        error: 'This transaction ID has already been used'
-      });
-    }
-    
     // Get current round
     let currentRound = await Round.findOne({ isFinalized: false });
     
     // Create first round if none exists
     if (!currentRound) {
+      const { getNextPowerballDrawDate } = await import('../services/powerballService.js');
       currentRound = await Round.create({
         roundId: 1,
         startTime: new Date(),
@@ -70,33 +55,19 @@ router.post('/', async (req, res) => {
       });
     }
     
-    // Validate transaction on blockchain
-    let txDetails;
-    let validationError = null;
-    
-    try {
-      txDetails = await validateTransaction(transactionId);
-      
-      // Check if transaction was made before draw date
-      if (txDetails.timestamp > currentRound.drawDate) {
-        throw new Error('Transaction must be made before the draw date');
-      }
-    } catch (error) {
-      validationError = error.message;
-      console.error('Transaction validation failed:', error.message);
-    }
-    
-    // Create bet
+    // Create bet with pending payment status
     const bet = await Bet.create({
       numbers: numbers.sort((a, b) => a - b),
-      transactionId,
+      transactionId: null, // Will be filled when payment is detected
       nickname: nickname || null,
       roundId: currentRound.roundId,
-      fromAddress: txDetails?.fromAddress || 'pending',
-      transactionValue: txDetails?.value || '0',
-      transactionTimestamp: txDetails?.timestamp || new Date(),
-      isValidated: txDetails ? true : false,
-      validationError
+      fromAddress: null,
+      transactionValue: '0',
+      transactionTimestamp: null,
+      paymentStatus: 'pending',
+      isValidated: false,
+      validationError: null,
+      paymentCheckAttempts: 0
     });
     
     // Update round bet count
@@ -105,13 +76,14 @@ router.post('/', async (req, res) => {
     
     res.json({
       success: true,
-      message: txDetails ? 'Bet placed successfully' : 'Bet registered, pending validation',
+      message: 'Bet registered successfully! Please complete payment to activate.',
       data: {
         betId: bet._id,
         roundId: currentRound.roundId,
         drawDate: currentRound.drawDate,
-        isValidated: bet.isValidated,
-        validationError: bet.validationError
+        paymentStatus: bet.paymentStatus,
+        numbers: bet.numbers,
+        expectedAmount: process.env.BET_AMOUNT || '0.1'
       }
     });
     
@@ -127,10 +99,11 @@ router.post('/', async (req, res) => {
 /**
  * POST /api/bets/multiple
  * Place multiple bets at once (for professional players)
+ * NOTE: This endpoint is deprecated. Use POST /api/bets multiple times instead.
  */
 router.post('/multiple', async (req, res) => {
   try {
-    const { bets, transactionId, nickname } = req.body;
+    const { bets, nickname } = req.body;
     
     // Validation
     if (!bets || !Array.isArray(bets) || bets.length === 0) {
@@ -175,27 +148,12 @@ router.post('/multiple', async (req, res) => {
       }
     }
     
-    if (!transactionId) {
-      return res.status(400).json({
-        success: false,
-        error: 'Transaction ID is required'
-      });
-    }
-    
-    // Check if transaction already used
-    const existingBet = await Bet.findOne({ transactionId });
-    if (existingBet) {
-      return res.status(400).json({
-        success: false,
-        error: 'This transaction ID has already been used'
-      });
-    }
-    
     // Get current round
     let currentRound = await Round.findOne({ isFinalized: false });
     
     // Create first round if none exists
     if (!currentRound) {
+      const { getNextPowerballDrawDate } = await import('../services/powerballService.js');
       currentRound = await Round.create({
         roundId: 1,
         startTime: new Date(),
@@ -203,50 +161,24 @@ router.post('/multiple', async (req, res) => {
       });
     }
     
-    // Validate transaction on blockchain
-    let txDetails;
-    let validationError = null;
-    
-    try {
-      txDetails = await validateTransaction(transactionId);
-      
-      // Check if transaction was made before draw date
-      if (txDetails.timestamp > currentRound.drawDate) {
-        throw new Error('Transaction must be made before the draw date');
-      }
-      
-      // Check if transaction value matches expected amount
-      const expectedAmount = parseFloat(process.env.BET_AMOUNT || '0.1') * bets.length;
-      const actualAmount = parseFloat(txDetails.value);
-      const tolerance = 0.01; // 0.01 MATIC tolerance
-      
-      if (Math.abs(actualAmount - expectedAmount) > tolerance) {
-        throw new Error(`Transaction amount (${actualAmount} MATIC) doesn't match expected amount (${expectedAmount} MATIC for ${bets.length} bets)`);
-      }
-    } catch (error) {
-      validationError = error.message;
-      console.error('Transaction validation failed:', error.message);
-    }
-    
-    // Create all bets
+    // Create all bets with pending payment status
     const createdBets = [];
     
     for (let i = 0; i < bets.length; i++) {
       const betData = bets[i];
       
-      // For multiple bets, we append the index to the transaction ID to make it unique
-      const uniqueTxId = `${transactionId}-${i}`;
-      
       const bet = await Bet.create({
         numbers: betData.numbers.sort((a, b) => a - b),
-        transactionId: uniqueTxId,
+        transactionId: null, // Will be filled when payment is detected
         nickname: nickname || null,
         roundId: currentRound.roundId,
-        fromAddress: txDetails?.fromAddress || 'pending',
-        transactionValue: txDetails ? (parseFloat(txDetails.value) / bets.length).toString() : '0',
-        transactionTimestamp: txDetails?.timestamp || new Date(),
-        isValidated: txDetails ? true : false,
-        validationError: i === 0 ? validationError : null // Only store error on first bet
+        fromAddress: null,
+        transactionValue: '0',
+        transactionTimestamp: null,
+        paymentStatus: 'pending',
+        isValidated: false,
+        validationError: null,
+        paymentCheckAttempts: 0
       });
       
       createdBets.push(bet);
@@ -258,15 +190,14 @@ router.post('/multiple', async (req, res) => {
     
     res.json({
       success: true,
-      message: txDetails 
-        ? `${bets.length} bets placed successfully` 
-        : `${bets.length} bets registered, pending validation`,
+      message: `${bets.length} bets registered successfully! Please complete payment to activate.`,
       data: {
+        betIds: createdBets.map(b => b._id),
         betsCount: bets.length,
         roundId: currentRound.roundId,
         drawDate: currentRound.drawDate,
-        isValidated: txDetails ? true : false,
-        validationError
+        paymentStatus: 'pending',
+        expectedAmount: (parseFloat(process.env.BET_AMOUNT || '0.1') * bets.length).toFixed(6)
       }
     });
     
@@ -324,6 +255,47 @@ router.get('/round/:roundId', async (req, res) => {
     });
   } catch (error) {
     console.error('Error getting round bets:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+/**
+ * GET /api/bets/:betId
+ * Get bet by ID
+ */
+router.get('/:betId', async (req, res) => {
+  try {
+    const { betId } = req.params;
+    
+    const bet = await Bet.findById(betId);
+    
+    if (!bet) {
+      return res.status(404).json({
+        success: false,
+        error: 'Bet not found'
+      });
+    }
+    
+    // Get round info
+    const round = await Round.findOne({ roundId: bet.roundId });
+    
+    res.json({
+      success: true,
+      data: {
+        bet,
+        round: {
+          roundId: round.roundId,
+          drawDate: round.drawDate,
+          isFinalized: round.isFinalized,
+          winningNumbers: round.winningNumbers
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching bet:', error);
     res.status(500).json({
       success: false,
       error: error.message
@@ -772,6 +744,90 @@ router.post('/complete-session', async (req, res) => {
     
   } catch (error) {
     console.error('Error completing session:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+/**
+ * GET /api/bets/admin/pending
+ * Get all pending bets (admin)
+ */
+router.get('/admin/pending', async (req, res) => {
+  try {
+    const pendingBets = await Bet.find({ paymentStatus: 'pending' })
+      .sort({ betPlacedAt: -1 })
+      .limit(100);
+    
+    res.json({
+      success: true,
+      data: {
+        count: pendingBets.length,
+        bets: pendingBets
+      }
+    });
+  } catch (error) {
+    console.error('Error getting pending bets:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+/**
+ * GET /api/bets/admin/payment-monitor-status
+ * Get payment monitor status (admin)
+ */
+router.get('/admin/payment-monitor-status', async (req, res) => {
+  try {
+    const { getMonitorStatus } = await import('../services/paymentMonitor.js');
+    const status = getMonitorStatus();
+    
+    const pendingCount = await Bet.countDocuments({ paymentStatus: 'pending' });
+    const paidCount = await Bet.countDocuments({ paymentStatus: 'paid' });
+    const failedCount = await Bet.countDocuments({ paymentStatus: 'failed' });
+    
+    res.json({
+      success: true,
+      data: {
+        monitor: status,
+        stats: {
+          pending: pendingCount,
+          paid: paidCount,
+          failed: failedCount,
+          total: pendingCount + paidCount + failedCount
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Error getting monitor status:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+/**
+ * POST /api/bets/admin/check-bet-payment/:betId
+ * Manually trigger payment check for a specific bet (admin)
+ */
+router.post('/admin/check-bet-payment/:betId', async (req, res) => {
+  try {
+    const { betId } = req.params;
+    const { checkBetPayment } = await import('../services/paymentMonitor.js');
+    
+    const result = await checkBetPayment(betId);
+    
+    res.json({
+      success: true,
+      data: result
+    });
+  } catch (error) {
+    console.error('Error checking bet payment:', error);
     res.status(500).json({
       success: false,
       error: error.message

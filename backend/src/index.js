@@ -7,6 +7,7 @@ import betRoutes from './routes/bets.js';
 import powerballRoutes from './routes/powerball.js';
 import { checkPowerballResults } from './services/powerballService.js';
 import { connectDB } from './storage/mongoStorage.js';
+import { startPaymentMonitor, stopPaymentMonitor } from './services/paymentMonitor.js';
 
 dotenv.config();
 
@@ -121,12 +122,30 @@ cron.schedule('0 23 * * *', async () => {
   }
 });
 
+// Start payment monitor
+setTimeout(() => {
+  startPaymentMonitor();
+}, 3000); // Wait 3 seconds after server starts
+
 // Start server
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
   console.log(`📍 http://localhost:${PORT}`);
   console.log(`💾 Storage: MongoDB`);
   console.log(`🌐 CORS: Enabled for all localhost origins`);
+});
+
+// Graceful shutdown
+process.on('SIGTERM', () => {
+  console.log('🛑 SIGTERM received. Shutting down gracefully...');
+  stopPaymentMonitor();
+  process.exit(0);
+});
+
+process.on('SIGINT', () => {
+  console.log('🛑 SIGINT received. Shutting down gracefully...');
+  stopPaymentMonitor();
+  process.exit(0);
 });
 
 // Error handling
