@@ -250,21 +250,16 @@ export async function getRecentTransactions(limit = 10) {
   try {
     if (!provider) initProvider();
     
+    console.log('🔎 Fetching recent transactions...');
+    
     // Get recent block number
     const currentBlock = await provider.getBlockNumber();
-    const fromBlock = currentBlock - 10000; // Last ~10000 blocks (about 5-6 hours on Polygon)
+    console.log(`📦 Current block: ${currentBlock}`);
     
-    // Get transaction history using eth_getLogs
-    const filter = {
-      address: null, // Any contract
-      fromBlock,
-      toBlock: 'latest',
-      topics: null
-    };
-    
-    // Alternative: Get recent blocks and check transactions
     const transactions = [];
-    const blocksToCheck = Math.min(100, limit * 5); // Check recent blocks
+    const blocksToCheck = Math.min(500, limit * 50); // Check up to 500 blocks (~15-20 minutes)
+    
+    console.log(`📊 Checking last ${blocksToCheck} blocks...`);
     
     for (let i = 0; i < blocksToCheck && transactions.length < limit; i++) {
       try {
@@ -275,34 +270,37 @@ export async function getRecentTransactions(limit = 10) {
           for (const tx of block.transactions) {
             if (typeof tx === 'object' && tx.to && tx.to.toLowerCase() === RECEIVING_WALLET.toLowerCase()) {
               const value = ethers.formatEther(tx.value);
-              if (parseFloat(value) >= parseFloat(BET_AMOUNT)) {
-                transactions.push({
-                  hash: tx.hash,
-                  from: tx.from,
-                  to: tx.to,
-                  value: value,
-                  timestamp: new Date(block.timestamp * 1000),
-                  blockNumber: block.number,
-                  confirmations: currentBlock - block.number
-                });
-                
-                if (transactions.length >= limit) break;
-              }
+              const valueFloat = parseFloat(value);
+              
+              // Include ALL transactions to the wallet (not just those >= BET_AMOUNT)
+              // This helps with debugging
+              transactions.push({
+                hash: tx.hash,
+                from: tx.from,
+                to: tx.to,
+                value: value,
+                timestamp: new Date(block.timestamp * 1000),
+                blockNumber: block.number,
+                confirmations: currentBlock - block.number
+              });
+              
+              console.log(`  💰 Found TX: ${value} MATIC from ${tx.from.substring(0, 10)}... (block ${blockNumber})`);
+              
+              if (transactions.length >= limit) break;
             }
           }
         }
       } catch (blockError) {
-        console.warn(`Error fetching block ${currentBlock - i}:`, blockError.message);
+        // Silent fail for individual blocks
       }
     }
     
+    console.log(`✅ Found ${transactions.length} transactions total`);
     return transactions;
-  } catch (error) {
-    console.error('Error getting recent transactions:', error.message);
     
-    // Fallback: return empty array instead of throwing
-    console.warn('Returning empty transaction list due to error');
-    return [];
+  } catch (error) {
+    console.error('❌ Error getting recent transactions:', error.message);
+    throw error;
   }
 }
 
@@ -356,60 +354,39 @@ export async function getRecentTransactionsViaAPI(limit = 10) {
  */
 export async function findPendingPayment(expectedAmount, since = null) {
   try {
-    // Try to get recent transactions
-    const recentTxs = await getRecentTransactions(20);
+    // Get recent transactions from blockchain
+    const recentTxs = await getRecentTransactions(30);
     
     const expectedAmountFloat = parseFloat(expectedAmount);
-    const tolerance = 0.01; // Increased tolerance to 0.01 MATIC
+    const tolerance = 0.01; // 0.01 MATIC tolerance
+    
+    console.log(`🔍 Searching for payment of ${expectedAmount} MATIC (tolerance: ${tolerance})`);
+    console.log(`📊 Found ${recentTxs.length} recent transactions to check`);
     
     for (const tx of recentTxs) {
       const txAmount = parseFloat(tx.value);
+      
+      console.log(`  - TX ${tx.hash.substring(0, 10)}... : ${txAmount} MATIC`);
       
       // Check if amount matches (within tolerance)
       if (Math.abs(txAmount - expectedAmountFloat) <= tolerance) {
         // Check if transaction is recent enough
         if (since && tx.timestamp < since) {
+          console.log(`    ⏰ Too old (before ${since})`);
           continue;
         }
         
+        console.log(`    ✅ MATCH FOUND!`);
         return tx;
       }
     }
     
-    // If no transaction found via blockchain search, create a mock transaction
-    // This is a temporary workaround while RPC transaction search is unreliable
-    console.log('⚠️ No transaction found via blockchain search');
-    console.log(`Expected amount: ${expectedAmount} MATIC`);
-    console.log('Creating mock transaction for payment confirmation...');
-    
-    // Return a mock transaction to allow the bet to proceed
-    // In production, you should improve the transaction detection
-    return {
-      hash: `0x${Date.now().toString(16)}${Math.random().toString(16).substr(2, 40)}`,
-      from: '0x0000000000000000000000000000000000000000',
-      to: RECEIVING_WALLET,
-      value: expectedAmount,
-      timestamp: new Date(),
-      blockNumber: 0,
-      confirmations: 1,
-      note: 'Auto-detected via balance increase (RPC search unavailable)'
-    };
+    console.log('❌ No matching payment found');
+    return null;
     
   } catch (error) {
     console.error('Error finding pending payment:', error.message);
-    
-    // Even on error, allow payment if amount seems reasonable
-    console.log('Creating fallback transaction due to error...');
-    return {
-      hash: `0x${Date.now().toString(16)}${Math.random().toString(16).substr(2, 40)}`,
-      from: '0x0000000000000000000000000000000000000000',
-      to: RECEIVING_WALLET,
-      value: expectedAmount,
-      timestamp: new Date(),
-      blockNumber: 0,
-      confirmations: 1,
-      note: 'Fallback transaction (RPC error)'
-    };
+    throw error;
   }
 }
 
